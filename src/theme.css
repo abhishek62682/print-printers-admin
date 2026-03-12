@@ -1,0 +1,46 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Josefin+Sans:ital,wght@0,100..700;1,100..700&display=swap');
+
+body{
+
+    font-family: var(--font-secondary);
+   
+
+
+}
+
+
+
+:root {
+
+  --font-primary: "Josefin Sans", sans-serif;
+  --font-secondary: "Inter", sans-serif;
+
+  --color-text-primary: #1E1E1E;
+  --color-text-secondary: #757575;
+  
+  --color-light: #D2D2D2;
+  --color-sky: #76B9F0;
+  --color-blue: #31A2FF;
+  --color-dark: #1E0D87;
+  --color-black: #000000;
+  --color-white:#fff;
+
+
+
+}
+
+.bg-col-blue{
+    background-color: var(--color-blue);
+
+}
+
+.font-primary{
+    font-family: var(--font-primary);
+}
+
+.font-secondary{
+    font-family: var(--font-secondary);
+}
+
+
+
