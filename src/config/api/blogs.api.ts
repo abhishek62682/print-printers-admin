@@ -77,7 +77,7 @@ export const getBlogById = async (id: string): Promise<Blog> => {
 
 // POST create blog (protected, with coverImage + bannerImage)
 export const createBlog = async (formData: FormData): Promise<Blog> => {
-  const response = await httpClient.post<ApiResponse<Blog>>("/admin/blogs", formData, {
+  const response = await httpClient.post<ApiResponse<Blog>>("/blogs", formData, {
     headers: { "Content-Type": "multipart/form-data" },
   });
   return response.data.data;
