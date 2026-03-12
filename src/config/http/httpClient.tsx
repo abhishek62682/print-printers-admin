@@ -2,7 +2,7 @@ import axios from "axios";
 import Cookies from "js-cookie";
 
 const httpClient = axios.create({
-  baseURL: "https://print-printers-backend.onrender.com/api/",
+  baseURL: "https://print-printers-backend.onrender.com/api",
   withCredentials: true, 
   headers: {
     "Content-Type": "application/json",

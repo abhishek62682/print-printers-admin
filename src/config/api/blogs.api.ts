@@ -60,7 +60,7 @@ export const getAllBlogs = async (
   });
 
   const response = await httpClient.get<ApiResponse<Blog[]>>(
-    `/admin/blogs?${query.toString()}`
+    `/blogs?${query.toString()}`
   );
 
   return {
@@ -71,7 +71,7 @@ export const getAllBlogs = async (
 
 // GET single blog by id (public)
 export const getBlogById = async (id: string): Promise<Blog> => {
-  const response = await httpClient.get<ApiResponse<Blog>>(`/admin/blogs/${id}`);
+  const response = await httpClient.get<ApiResponse<Blog>>(`/blogs/${id}`);
   return response.data.data;
 };
 
@@ -85,7 +85,7 @@ export const createBlog = async (formData: FormData): Promise<Blog> => {
 
 // PATCH update blog (protected, with optional coverImage + bannerImage)
 export const updateBlog = async (id: string, formData: FormData): Promise<Blog> => {
-  const response = await httpClient.patch<ApiResponse<Blog>>(`/admin/blogs/${id}`, formData, {
+  const response = await httpClient.patch<ApiResponse<Blog>>(`/blogs/${id}`, formData, {
     headers: { "Content-Type": "multipart/form-data" },
   });
   return response.data.data;
