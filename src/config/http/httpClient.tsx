@@ -1,8 +1,9 @@
 import axios from "axios";
 import Cookies from "js-cookie";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const httpClient = axios.create({
-  baseURL: "https://print-printers-backend.onrender.com/api",
+  baseURL: API_BASE_URL,
   withCredentials: true, 
   headers: {
     "Content-Type": "application/json",

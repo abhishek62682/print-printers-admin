@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import Required from '@/components/required';
 import {
     Breadcrumb,
     BreadcrumbItem,
@@ -69,7 +70,7 @@ const ImageUploadBox = ({
     preview: string | null;
     onFileChange: (e: ChangeEvent<HTMLInputElement>) => void;
     onClear: () => void;
-    inputRef: React.RefObject<HTMLInputElement>;
+    inputRef: React.RefObject<HTMLInputElement | null>; // ✅ fixed: matches useRef<T | null>
 }) => {
     return (
         <div className="space-y-3">
@@ -129,8 +130,8 @@ const CreateBlog = () => {
     const [coverFile, setCoverFile]     = useState<File | null>(null);
     const [bannerFile, setBannerFile]   = useState<File | null>(null);
 
-    const coverInputRef  = useRef<HTMLInputElement>(null);
-    const bannerInputRef = useRef<HTMLInputElement>(null);
+    const coverInputRef  = useRef<HTMLInputElement | null>(null); // ✅ fixed
+    const bannerInputRef = useRef<HTMLInputElement | null>(null); // ✅ fixed
 
     const form = useForm<FormValues>({
         resolver: zodResolver(formSchema),
@@ -143,11 +144,13 @@ const CreateBlog = () => {
         mutationFn: createBlog,
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['blogs'] });
-            toast.success('Blog created successfully.');
+            toast.success('Blog created', {
+                description: 'Your blog post has been published successfully.',
+            });
             navigate('/dashboard/blogs');
         },
         onError: () => {
-            toast.error('Failed to create blog.', {
+            toast.error('Failed to create blog', {
                 description: 'Something went wrong. Please try again.',
             });
         },
@@ -181,7 +184,7 @@ const CreateBlog = () => {
     function onSubmit(values: FormValues) {
         const formData = new FormData();
         formData.append('title',    values?.title    ?? '');
-        formData.append('content',  values?.content  ?? '');  // ✅ HTML from editor
+        formData.append('content',  values?.content  ?? '');
         formData.append('isActive', String(values?.isActive ?? true));
         if (tags?.length > 0) formData.append('tags', JSON.stringify(tags));
         if (coverFile)  formData.append('coverImage',  coverFile);
@@ -226,7 +229,7 @@ const CreateBlog = () => {
                                     name="title"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Title</FormLabel>
+                                            <FormLabel>Title <Required /></FormLabel>
                                             <FormControl>
                                                 <Input type="text" className="w-full" {...field} />
                                             </FormControl>
@@ -241,11 +244,11 @@ const CreateBlog = () => {
                                     name="content"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Content</FormLabel>
+                                            <FormLabel>Content <Required /></FormLabel>
                                             <FormControl>
                                                 <JoditEditor
                                                     value={field.value}
-                                                    onBlur={(newContent) => field.onChange(newContent)}  // ✅ updates form on blur
+                                                    onBlur={(newContent) => field.onChange(newContent)}
                                                 />
                                             </FormControl>
                                             <FormMessage />

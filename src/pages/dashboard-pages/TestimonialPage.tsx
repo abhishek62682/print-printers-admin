@@ -56,20 +56,26 @@ import {
     updateTestimonial,
 } from '@/config/api/testimonial.api';
 import type { Testimonial, GetTestimonialsParams } from '@/config/api/testimonial.api';
+import type { AxiosError } from 'axios';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CirclePlus, MoreHorizontal, UserCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '@/Utils/constant';
+
+interface ApiErrorResponse {
+    message: string;
+}
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 
 const TestimonialsPage = () => {
-    const navigate = useNavigate();
+    const navigate    = useNavigate();
     const queryClient = useQueryClient();
 
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [dialogOpen, setDialogOpen] = useState(false);
-    const [page, setPage] = useState(1);
+    const [page, setPage]   = useState(1);
     const [limit, setLimit] = useState(10);
     const [status, setStatus] = useState<GetTestimonialsParams['status'] | 'all'>('all');
 
@@ -81,12 +87,12 @@ const TestimonialsPage = () => {
 
     const { data, isLoading, isError } = useQuery({
         queryKey: ['testimonials', queryParams],
-        queryFn: () => getAllTestimonials(queryParams),
+        queryFn:  () => getAllTestimonials(queryParams),
         staleTime: 10000,
     });
 
-    const testimonials = data?.data ?? [];
-    const pagination = data?.pagination;
+    const testimonials = data?.data      ?? [];
+    const pagination   = data?.pagination;
 
     const deleteMutation = useMutation({
         mutationFn: () => deleteTestimonial(deleteId!),
@@ -94,10 +100,13 @@ const TestimonialsPage = () => {
             queryClient.invalidateQueries({ queryKey: ['testimonials'] });
             setDialogOpen(false);
             setDeleteId(null);
-            toast.success('Testimonial deleted successfully.');
+            toast.success('Testimonial deleted', {
+                description: 'The testimonial has been permanently removed.',
+            });
         },
-        onError: () => {
-            toast.error('Failed to delete testimonial.');
+        onError: (error: AxiosError<ApiErrorResponse>) => {
+            const message = error.response?.data?.message ?? 'Something went wrong. Please try again.';
+            toast.error('Failed to delete testimonial', { description: message });
         },
     });
 
@@ -113,10 +122,9 @@ const TestimonialsPage = () => {
                 description: `Testimonial marked as ${isActive ? 'Active' : 'Inactive'}.`,
             });
         },
-        onError: () => {
-            toast.error('Failed to update status', {
-                description: 'Something went wrong. Please try again.',
-            });
+        onError: (error: AxiosError<ApiErrorResponse>) => {
+            const message = error.response?.data?.message ?? 'Something went wrong. Please try again.';
+            toast.error('Failed to update status', { description: message });
         },
     });
 
@@ -137,7 +145,6 @@ const TestimonialsPage = () => {
 
     return (
         <div>
-            {/* Top bar */}
             <div className="flex items-center justify-between">
                 <Breadcrumb>
                     <BreadcrumbList>
@@ -158,7 +165,6 @@ const TestimonialsPage = () => {
                 </Link>
             </div>
 
-            {/* Card */}
             <Card className="mt-6">
                 <CardHeader>
                     <div className="flex items-start justify-between gap-4">
@@ -168,7 +174,6 @@ const TestimonialsPage = () => {
                                 Manage client testimonials displayed on your site.
                             </CardDescription>
                         </div>
-                        {/* Status filter */}
                         <Select value={status} onValueChange={handleStatusChange}>
                             <SelectTrigger className="w-[140px]">
                                 <SelectValue placeholder="Filter status" />
@@ -209,11 +214,12 @@ const TestimonialsPage = () => {
                             <TableBody>
                                 {testimonials.map((testimonial: Testimonial) => (
                                     <TableRow key={testimonial._id}>
+
                                         {/* Avatar */}
                                         <TableCell className="hidden sm:table-cell">
                                             {testimonial?.imageUrl ? (
                                                 <img
-                                                    src={`http://localhost:3000/${testimonial.imageUrl}`}
+                                                    src={`${API_BASE_URL}/${testimonial.imageUrl}`}
                                                     alt={testimonial?.name ?? ''}
                                                     className="h-10 w-10 rounded-full object-cover"
                                                 />
@@ -225,11 +231,21 @@ const TestimonialsPage = () => {
                                         </TableCell>
 
                                         {/* Name */}
-                                        <TableCell className="font-medium">{testimonial?.name ?? '—'}</TableCell>
+                                        <TableCell className="font-medium max-w-[140px]">
+                                            <p className="truncate">{testimonial?.name ?? '—'}</p>
+                                        </TableCell>
 
-                                        {/* Designation */}
-                                        <TableCell>
-                                            <Badge variant="outline">{testimonial?.designation ?? '—'}</Badge>
+                                        {/* Designation — truncated if long */}
+                                        <TableCell className="max-w-[160px]">
+                                            <Badge
+                                                variant="outline"
+                                                className="max-w-full text-xs"
+                                                title={testimonial?.designation ?? ''}
+                                            >
+                                                <span className="truncate block max-w-[140px]">
+                                                    {testimonial?.designation ?? '—'}
+                                                </span>
+                                            </Badge>
                                         </TableCell>
 
                                         {/* Content */}
@@ -240,19 +256,16 @@ const TestimonialsPage = () => {
                                         </TableCell>
 
                                         {/* Toggle */}
-<TableCell>
-  <Switch
-    className={testimonial?.isActive ? "bg-col-blue" : "bg-gray-300"}
-    checked={testimonial?.isActive ?? false}
-    disabled={toggleMutation.isPending}
-    onCheckedChange={(checked) =>
-      toggleMutation.mutate({
-        id: testimonial?._id,
-        isActive: checked,
-      })
-    }
-  />
-</TableCell>
+                                        <TableCell>
+                                            <Switch
+                                                className={testimonial?.isActive ? 'bg-col-blue' : 'bg-gray-300'}
+                                                checked={testimonial?.isActive ?? false}
+                                                disabled={toggleMutation.isPending}
+                                                onCheckedChange={(checked) =>
+                                                    toggleMutation.mutate({ id: testimonial?._id, isActive: checked })
+                                                }
+                                            />
+                                        </TableCell>
 
                                         {/* Date */}
                                         <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
@@ -314,7 +327,6 @@ const TestimonialsPage = () => {
                 </CardContent>
 
                 <CardFooter className="flex items-center justify-between">
-                    {/* Count */}
                     <div className="text-xs text-muted-foreground">
                         {pagination && pagination.total > 0 ? (
                             <>
@@ -330,7 +342,6 @@ const TestimonialsPage = () => {
                     </div>
 
                     <div className="flex items-center gap-4">
-                        {/* Rows per page */}
                         <div className="flex items-center gap-2">
                             <span className="text-xs text-muted-foreground whitespace-nowrap">Rows per page</span>
                             <Select value={String(limit)} onValueChange={handleLimitChange}>
@@ -347,7 +358,6 @@ const TestimonialsPage = () => {
                             </Select>
                         </div>
 
-                        {/* Pagination controls */}
                         {pagination && pagination.totalPages > 1 && (
                             <div className="flex items-center gap-2">
                                 <Button
@@ -377,7 +387,6 @@ const TestimonialsPage = () => {
                 </CardFooter>
             </Card>
 
-            {/* Delete dialog */}
             <AlertDialog
                 open={dialogOpen}
                 onOpenChange={(open) => {

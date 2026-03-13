@@ -8,6 +8,7 @@ import UpdateBlog from "@/pages/dashboard-pages/blog-page/UpdateBlogPage";
 import CreateTestimonial from "@/pages/dashboard-pages/CreateTestimonialPage";
 import EnquiriesPage from "@/pages/dashboard-pages/equiry-page/EnquiryListPage";
 import HomePage from "@/pages/dashboard-pages/HomePage";
+import ProfilePage from "@/pages/dashboard-pages/profile-page";
 import TestimonialsPage from "@/pages/dashboard-pages/TestimonialPage";
 import UpdateTestimonial from "@/pages/dashboard-pages/UpdateTestimonialPage";
 import { createBrowserRouter, Navigate } from "react-router-dom";
@@ -42,6 +43,10 @@ const router = createBrowserRouter([
         path: "home",
         element: <HomePage />,
       },
+       {
+        path: "profile",
+        element: <ProfilePage />,
+      },
       {
         path:"testimonials",
         element:<TestimonialsPage />
@@ -65,7 +70,7 @@ const router = createBrowserRouter([
       },
 
       {
-        path:"enquiries",
+        path:"inquiries",
         element:<EnquiriesPage />
 
       }

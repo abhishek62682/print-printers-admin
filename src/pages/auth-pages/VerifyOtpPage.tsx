@@ -2,17 +2,13 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import type { AxiosError } from "axios";
 
 import { verifyOtp } from "@/config/api/auth.api";
 import { useAuthStore } from "@/config/store/auth";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Field,
   FieldDescription,
@@ -24,45 +20,46 @@ import {
   InputOTPGroup,
   InputOTPSlot,
 } from "@/components/ui/input-otp";
-import { LoaderCircleIcon } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
+
+interface ApiErrorResponse {
+  message: string;
+}
 
 function OtpPage(props: React.ComponentProps<typeof Card>) {
   const [otp, setOtp] = useState("");
 
   const navigate = useNavigate();
- const email = useAuthStore((state) => state.user.email);
-const setAuth = useAuthStore((state) => state.setAuth);
+  const email    = useAuthStore((state) => state.user.email);
+  const setAuth  = useAuthStore((state) => state.setAuth);
 
-const otpMutation = useMutation({
-  mutationFn: verifyOtp,
+  const otpMutation = useMutation({
+    mutationFn: verifyOtp,
 
-  onSuccess: (data) => {
-   
-    setAuth(email!, data?.data?.token);
-
- toast("Login successful 🎉", {
-    description: "You have been successfully authenticated.",
-  });
-    navigate("/dashboard/home");
-  },
-
-  onError: (error: any) => {
-    toast.error(
-      error.response?.data?.message || "Invalid verification code"
-    );
-  },
-});
-
-  function onSubmitHandler(e: React.FormEvent) {
-    e.preventDefault();
-
-    if (otp.length === 6) {
-      otpMutation.mutate({
-        email,
-        otp,
+    onSuccess: (data) => {
+      setAuth(email ?? "", data?.data?.token);
+      toast.success("Login successful", {
+        description: "Welcome back Redirecting to dashboard.",
       });
+      navigate("/dashboard/home");
+    },
+
+    onError: (error: AxiosError<ApiErrorResponse>) => {
+      const message = error.response?.data?.message ?? "Invalid verification code.";
+      toast.error("Verification failed", {
+        description: message,
+      });
+    },
+  });
+
+  function onSubmitHandler(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (otp.length === 6) {
+      otpMutation.mutate({ email: email ?? "", otp });
     } else {
-      toast.error("Please enter 6 digit OTP");
+      toast.error("Invalid code", {
+        description: "Please enter the complete 6-digit code.",
+      });
     }
   }
 
@@ -83,7 +80,7 @@ const otpMutation = useMutation({
             <Field>
               <FieldLabel
                 htmlFor="otp"
-                className="text-[16px] font-bold text-[#374151]"
+                className="text-sm font-semibold text-[#374151]"
               >
                 Verification code
               </FieldLabel>
@@ -104,8 +101,8 @@ const otpMutation = useMutation({
                 </InputOTPGroup>
               </InputOTP>
 
-              <FieldDescription className="lg:text-[16px] text-[12px] text-[#535353]">
-                Enter the 6-digit code sent to your email.
+              <FieldDescription className="text-xs text-[#535353]">
+                Enter the 6-digit code from your authenticator app.
               </FieldDescription>
             </Field>
 
@@ -115,13 +112,10 @@ const otpMutation = useMutation({
               className="w-full"
               disabled={otpMutation.isPending}
             >
-              { otpMutation.isPending &&
-                <div className="animate-spin">
-
-                <LoaderCircleIcon />
-              </div>
-              }
-              {otpMutation?.isPending ? "Verifying" : "Verify & Continue"}
+              {otpMutation.isPending && (
+                <LoaderCircle className="animate-spin mr-2 h-4 w-4" />
+              )}
+              {otpMutation.isPending ? "Verifying..." : "Verify & Continue"}
             </Button>
           </FieldGroup>
         </form>

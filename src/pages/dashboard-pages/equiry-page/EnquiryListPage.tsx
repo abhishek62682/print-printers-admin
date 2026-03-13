@@ -7,6 +7,7 @@ import {
     BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
     Card,
     CardContent,
@@ -56,14 +57,26 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { getAllEnquiries, deleteEnquiry, updateEnquiry } from '@/config/api/enquiry.api';
+import { Label } from '@/components/ui/label';
+import { getAllEnquiries, exportEnquiries, deleteEnquiry, updateEnquiry } from '@/config/api/enquiry.api';
 import type { Enquiry, EnquiryStatus } from '@/config/api/enquiry.api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { MoreHorizontal, ChevronLeft, ChevronRight, Mail, Phone, Building2, Globe, Package, BookOpen, Calendar, Sparkles, FileText, Megaphone } from 'lucide-react';
+import type { AxiosError } from 'axios';
+import {
+    MoreHorizontal, ChevronLeft, ChevronRight,
+    Mail, Phone, Building2, Globe, Package,
+    BookOpen, Calendar, Sparkles, FileText,
+    Megaphone, Download, Filter, X,
+} from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import * as XLSX from 'xlsx';
 
-// ── Status config ─────────────────────────────────────────────────────────
+interface ApiErrorResponse {
+    message: string;
+}
+
+// ── Status config ──────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<EnquiryStatus, { label: string; className: string }> = {
     new:       { label: 'New',       className: 'bg-blue-100 text-blue-700 border-blue-200' },
     contacted: { label: 'Contacted', className: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
@@ -81,8 +94,16 @@ const StatusBadge = ({ status }: { status: EnquiryStatus }) => {
     );
 };
 
-// ── Detail row helper ─────────────────────────────────────────────────────
-const DetailRow = ({ icon: Icon, label, value }: { icon: React.ElementType; label: string; value?: string | null }) => {
+// ── Detail row helper ──────────────────────────────────────────────────────
+const DetailRow = ({
+    icon: Icon,
+    label,
+    value,
+}: {
+    icon: React.ElementType;
+    label: string;
+    value?: string | null;
+}) => {
     if (!value) return null;
     return (
         <div className="flex items-start gap-3">
@@ -99,7 +120,18 @@ const DetailRow = ({ icon: Icon, label, value }: { icon: React.ElementType; labe
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 
-// ─────────────────────────────────────────────────────────────────────────
+const formatDate = (dateStr?: string | null) => {
+    if (!dateStr) return '—';
+    try {
+        return new Date(dateStr).toLocaleDateString('en-US', {
+            year: 'numeric', month: 'short', day: 'numeric',
+        });
+    } catch {
+        return '—';
+    }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 const EnquiriesPage = () => {
     const queryClient = useQueryClient();
 
@@ -107,7 +139,13 @@ const EnquiriesPage = () => {
     const [limit, setLimit] = useState(10);
     const [statusFilter, setStatusFilter] = useState<EnquiryStatus | 'all'>('all');
 
-    const [deleteId, setDeleteId]   = useState<string | null>(null);
+    const [startDate, setStartDate]               = useState('');
+    const [endDate, setEndDate]                   = useState('');
+    const [appliedStartDate, setAppliedStartDate] = useState('');
+    const [appliedEndDate, setAppliedEndDate]     = useState('');
+    const [isExporting, setIsExporting]           = useState(false);
+
+    const [deleteId, setDeleteId]     = useState<string | null>(null);
     const [dialogOpen, setDialogOpen] = useState(false);
 
     const [viewEnquiry, setViewEnquiry] = useState<Enquiry | null>(null);
@@ -117,6 +155,8 @@ const EnquiriesPage = () => {
         page,
         limit,
         ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
+        ...(appliedStartDate ? { startDate: appliedStartDate } : {}),
+        ...(appliedEndDate   ? { endDate:   appliedEndDate   } : {}),
     };
 
     const { data, isLoading, isError } = useQuery({
@@ -125,18 +165,24 @@ const EnquiriesPage = () => {
         staleTime: 10000,
     });
 
-    const enquiries  = data?.data ?? [];
+    const enquiries  = data?.data      ?? [];
     const pagination = data?.pagination;
 
+    // ── Mutations ──────────────────────────────────────────────────────────
     const deleteMutation = useMutation({
         mutationFn: () => deleteEnquiry(deleteId!),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['enquiries'] });
             setDialogOpen(false);
             setDeleteId(null);
-            toast.success('Enquiry deleted successfully.');
+            toast.success('Enquiry deleted', {
+                description: 'The enquiry has been permanently removed.',
+            });
         },
-        onError: () => toast.error('Failed to delete enquiry.'),
+        onError: (error: AxiosError<ApiErrorResponse>) => {
+            const message = error.response?.data?.message ?? 'Something went wrong. Please try again.';
+            toast.error('Failed to delete enquiry', { description: message });
+        },
     });
 
     const statusMutation = useMutation({
@@ -144,15 +190,18 @@ const EnquiriesPage = () => {
             updateEnquiry(id, { status }),
         onSuccess: (_, { status }) => {
             queryClient.invalidateQueries({ queryKey: ['enquiries'] });
-            // update view dialog if open
             if (viewEnquiry) setViewEnquiry((prev) => prev ? { ...prev, status } : prev);
             toast.success('Status updated', {
-                description: `Enquiry marked as ${STATUS_CONFIG[status].label}.`,
+                description: `Enquiry marked as ${STATUS_CONFIG[status]?.label ?? status}.`,
             });
         },
-        onError: () => toast.error('Failed to update status.'),
+        onError: (error: AxiosError<ApiErrorResponse>) => {
+            const message = error.response?.data?.message ?? 'Something went wrong. Please try again.';
+            toast.error('Failed to update status', { description: message });
+        },
     });
 
+    // ── Handlers ───────────────────────────────────────────────────────────
     const handleDeleteClick = (id: string) => {
         setDeleteId(id);
         setTimeout(() => setDialogOpen(true), 100);
@@ -173,6 +222,96 @@ const EnquiriesPage = () => {
         setPage(1);
     };
 
+    const handleApplyFilter = () => {
+        if (startDate && endDate && startDate > endDate) {
+            toast.error('Invalid date range', {
+                description: 'Start date must not be after end date.',
+            });
+            return;
+        }
+        setAppliedStartDate(startDate);
+        setAppliedEndDate(endDate);
+        setPage(1);
+    };
+
+    const handleClearFilter = () => {
+        setStartDate('');
+        setEndDate('');
+        setAppliedStartDate('');
+        setAppliedEndDate('');
+        setPage(1);
+    };
+
+    const isFilterApplied = Boolean(appliedStartDate || appliedEndDate);
+
+    // ── Export Excel ───────────────────────────────────────────────────────
+    const handleExportExcel = async () => {
+        setIsExporting(true);
+        try {
+            const rows = await exportEnquiries({
+                ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
+                ...(appliedStartDate ? { startDate: appliedStartDate } : {}),
+                ...(appliedEndDate   ? { endDate:   appliedEndDate   } : {}),
+            });
+
+            if (!rows?.length) {
+                toast.warning('No data to export', {
+                    description: 'No enquiries found for the selected filters.',
+                });
+                return;
+            }
+
+            const sheetData = rows.map((e) => ({
+                'Full Name':           e?.fullName             ?? '',
+                'Company Name':        e?.companyName          ?? '',
+                'Email':               e?.email                ?? '',
+                'Phone Number':        e?.phoneNumber          ?? '',
+                'Country':             e?.country              ?? '',
+                'Product Type':        e?.productType          ?? '',
+                'Binding Type':        e?.bindingType          ?? '',
+                'Approx. Quantity':    e?.approximateQuantity  ?? '',
+                'Specialty Finishing': e?.specialtyFinishing   ?? '',
+                'Required Delivery':   e?.requiredDeliveryDate ?? '',
+                'Project Description': e?.projectDescription   ?? '',
+                'How Did You Hear':    e?.howDidYouHear        ?? '',
+                'Status':              STATUS_CONFIG[e?.status as EnquiryStatus]?.label ?? e?.status ?? '',
+                'Received On':         e?.createdAt
+                    ? new Date(e.createdAt).toLocaleDateString('en-US', {
+                        year: 'numeric', month: 'short', day: 'numeric',
+                    })
+                    : '',
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(sheetData);
+            const workbook  = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Enquiries');
+
+            const colWidths = Object.keys(sheetData[0]).map((key) => ({
+                wch: Math.max(
+                    key.length,
+                    ...sheetData.map((row) => String(row[key as keyof typeof row] ?? '').length)
+                ) + 2,
+            }));
+            worksheet['!cols'] = colWidths;
+
+            const from     = appliedStartDate || 'all';
+            const to       = appliedEndDate   || 'all';
+            const filename = `enquiries-${from}-to-${to}.xlsx`;
+
+            XLSX.writeFile(workbook, filename);
+            toast.success('Export successful', {
+                description: `${rows.length} enquir${rows.length !== 1 ? 'ies' : 'y'} exported to Excel.`,
+            });
+        } catch {
+            toast.error('Export failed', {
+                description: 'Something went wrong while exporting. Please try again.',
+            });
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    // ─────────────────────────────────────────────────────────────────────
     return (
         <div>
             <div className="flex items-center justify-between">
@@ -190,27 +329,79 @@ const EnquiriesPage = () => {
             </div>
 
             <Card className="mt-6">
-                <CardHeader>
-                    <div className="flex items-start justify-between gap-4">
+                <CardHeader className="space-y-0 pb-0">
+                    <div className="flex items-center justify-between pb-4">
                         <div>
                             <CardTitle>Contact Enquiries</CardTitle>
-                            <CardDescription className="mt-1">
+                            <CardDescription className="mt-0.5">
                                 All enquiries submitted through the contact form.
                             </CardDescription>
                         </div>
-                        {/* Status filter */}
-                        <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
-                            <SelectTrigger className="w-[140px]">
-                                <SelectValue placeholder="Filter status" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All</SelectItem>
-                                {(Object.keys(STATUS_CONFIG) as EnquiryStatus[]).map((s) => (
-                                    <SelectItem key={s} value={s}>{STATUS_CONFIG[s].label}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
                     </div>
+
+                    <div className="flex flex-wrap items-end gap-3 pt-3 pb-2">
+                        <div className="flex flex-col gap-1">
+                            <Label className="text-xs text-muted-foreground">Start Date</Label>
+                            <Input
+                                type="date"
+                                value={startDate}
+                                max={endDate || undefined}
+                                onChange={(e) => setStartDate(e?.target?.value ?? '')}
+                                className="h-9 w-[148px] text-sm"
+                            />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <Label className="text-xs text-muted-foreground">End Date</Label>
+                            <Input
+                                type="date"
+                                value={endDate}
+                                min={startDate || undefined}
+                                onChange={(e) => setEndDate(e?.target?.value ?? '')}
+                                className="h-9 w-[148px] text-sm"
+                            />
+                        </div>
+                        <Button variant="outline" size="sm" className="h-9" onClick={handleApplyFilter} disabled={isLoading}>
+                            <Filter className="h-3.5 w-3.5 mr-1.5" />
+                            Apply
+                        </Button>
+                        {isFilterApplied && (
+                            <Button variant="ghost" size="sm" className="h-9 text-muted-foreground" onClick={handleClearFilter}>
+                                <X className="h-3.5 w-3.5 mr-1.5" />
+                                Clear
+                            </Button>
+                        )}
+                        <div className="flex-1" />
+                        <div className="flex flex-col gap-1">
+                            <Label className="text-xs text-muted-foreground">Status</Label>
+                            <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
+                                <SelectTrigger className="h-9 w-[130px]">
+                                    <SelectValue placeholder="All" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">All</SelectItem>
+                                    {(Object.keys(STATUS_CONFIG) as EnquiryStatus[]).map((s) => (
+                                        <SelectItem key={s} value={s}>{STATUS_CONFIG[s].label}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-9"
+                            onClick={handleExportExcel}
+                            disabled={isExporting || isLoading}
+                        >
+                            <Download className="h-3.5 w-3.5 mr-1.5" />
+                            {isExporting ? 'Exporting...' : 'Export Excel'}
+                        </Button>
+                    </div>
+
+                    {isFilterApplied && (
+                        <p className="text-xs text-muted-foreground pb-2">
+                            Showing: <strong>{appliedStartDate || '—'}</strong>{' → '}<strong>{appliedEndDate || '—'}</strong>
+                        </p>
+                    )}
                 </CardHeader>
 
                 <CardContent>
@@ -255,7 +446,7 @@ const EnquiriesPage = () => {
                                                 value={enquiry?.status ?? 'new'}
                                                 disabled={statusMutation.isPending}
                                                 onValueChange={(val) =>
-                                                    statusMutation.mutate({ id: enquiry._id, status: val as EnquiryStatus })
+                                                    statusMutation.mutate({ id: enquiry?._id, status: val as EnquiryStatus })
                                                 }
                                             >
                                                 <SelectTrigger className="h-7 w-[120px] text-xs px-2 border-0 shadow-none focus:ring-0">
@@ -276,9 +467,7 @@ const EnquiriesPage = () => {
                                             </Select>
                                         </TableCell>
                                         <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
-                                            {enquiry?.createdAt
-                                                ? new Date(enquiry.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-                                                : '—'}
+                                            {formatDate(enquiry?.createdAt)}
                                         </TableCell>
                                         <TableCell>
                                             <DropdownMenu>
@@ -296,7 +485,10 @@ const EnquiriesPage = () => {
                                                     <DropdownMenuSeparator />
                                                     <DropdownMenuItem
                                                         className="text-destructive focus:text-destructive"
-                                                        onSelect={(e) => { e.preventDefault(); handleDeleteClick(enquiry._id); }}
+                                                        onSelect={(e) => {
+                                                            e.preventDefault();
+                                                            handleDeleteClick(enquiry?._id);
+                                                        }}
                                                     >
                                                         Delete
                                                     </DropdownMenuItem>
@@ -309,8 +501,10 @@ const EnquiriesPage = () => {
                                     <TableRow>
                                         <TableCell colSpan={7} className="py-16 text-center text-sm text-muted-foreground">
                                             {statusFilter !== 'all'
-                                                ? `No ${STATUS_CONFIG[statusFilter as EnquiryStatus]?.label} enquiries found. Try changing the filter.`
-                                                : 'No enquiries found.'}
+                                                ? `No ${STATUS_CONFIG[statusFilter as EnquiryStatus]?.label} enquiries found.`
+                                                : isFilterApplied
+                                                    ? 'No enquiries found for the selected date range.'
+                                                    : 'No enquiries found.'}
                                         </TableCell>
                                     </TableRow>
                                 )}
@@ -321,18 +515,18 @@ const EnquiriesPage = () => {
 
                 <CardFooter className="flex items-center justify-between">
                     <div className="text-xs text-muted-foreground">
-                        {pagination && pagination.total > 0 ? (
+                        {pagination && (pagination?.total ?? 0) > 0 ? (
                             <>
                                 Showing{' '}
-                                <strong>{(page - 1) * limit + 1}–{Math.min(page * limit, pagination.total)}</strong>
-                                {' '}of <strong>{pagination.total}</strong> enquir{pagination.total !== 1 ? 'ies' : 'y'}
+                                <strong>{(page - 1) * limit + 1}–{Math.min(page * limit, pagination?.total ?? 0)}</strong>
+                                {' '}of <strong>{pagination?.total ?? 0}</strong>{' '}
+                                enquir{(pagination?.total ?? 0) !== 1 ? 'ies' : 'y'}
                             </>
                         ) : (
                             <>Showing <strong>0</strong> enquiries</>
                         )}
                     </div>
                     <div className="flex items-center gap-4">
-                        {/* Rows per page */}
                         <div className="flex items-center gap-2">
                             <span className="text-xs text-muted-foreground whitespace-nowrap">Rows per page</span>
                             <Select value={String(limit)} onValueChange={handleLimitChange}>
@@ -346,13 +540,13 @@ const EnquiriesPage = () => {
                                 </SelectContent>
                             </Select>
                         </div>
-                        {pagination && pagination.totalPages > 1 && (
+                        {(pagination?.totalPages ?? 0) > 1 && (
                             <div className="flex items-center gap-2">
                                 <Button variant="outline" size="sm" onClick={() => setPage((p) => p - 1)} disabled={!pagination?.hasPrevPage || isLoading}>
                                     <ChevronLeft className="h-4 w-4" /> Prev
                                 </Button>
                                 <span className="text-xs text-muted-foreground">
-                                    Page {pagination?.page} of {pagination?.totalPages}
+                                    Page {pagination?.page ?? 1} of {pagination?.totalPages ?? 1}
                                 </span>
                                 <Button variant="outline" size="sm" onClick={() => setPage((p) => p + 1)} disabled={!pagination?.hasNextPage || isLoading}>
                                     Next <ChevronRight className="h-4 w-4" />
@@ -363,71 +557,66 @@ const EnquiriesPage = () => {
                 </CardFooter>
             </Card>
 
-            {/* ── View Details Dialog ─────────────────────────────────────── */}
+            {/* ── View Details Dialog ──────────────────────────────────────── */}
             <Dialog open={viewOpen} onOpenChange={setViewOpen}>
                 <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
                     <DialogHeader>
                         <div className="flex items-center justify-between pr-6">
                             <DialogTitle>Enquiry Details</DialogTitle>
-                            {viewEnquiry && <StatusBadge status={viewEnquiry.status ?? 'new'} />}
+                            {viewEnquiry && <StatusBadge status={viewEnquiry?.status ?? 'new'} />}
                         </div>
                     </DialogHeader>
-
                     {viewEnquiry && (
                         <div className="space-y-5 pt-1">
-                            {/* Contact Info */}
                             <div>
                                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Contact Info</p>
                                 <div className="grid grid-cols-2 gap-3">
-                                    <DetailRow icon={Mail}      label="Full Name"    value={viewEnquiry?.fullName} />
-                                    <DetailRow icon={Building2} label="Company"      value={viewEnquiry?.companyName} />
-                                    <DetailRow icon={Mail}      label="Email"        value={viewEnquiry?.email} />
-                                    <DetailRow icon={Phone}     label="Phone"        value={viewEnquiry?.phoneNumber} />
-                                    <DetailRow icon={Globe}     label="Country"      value={viewEnquiry?.country} />
+                                    <DetailRow icon={Mail}      label="Full Name" value={viewEnquiry?.fullName} />
+                                    <DetailRow icon={Building2} label="Company"   value={viewEnquiry?.companyName} />
+                                    <DetailRow icon={Mail}      label="Email"     value={viewEnquiry?.email} />
+                                    <DetailRow icon={Phone}     label="Phone"     value={viewEnquiry?.phoneNumber} />
+                                    <DetailRow icon={Globe}     label="Country"   value={viewEnquiry?.country} />
                                     {viewEnquiry?.howDidYouHear && (
-                                        <DetailRow icon={Megaphone} label="How Did You Hear" value={viewEnquiry.howDidYouHear} />
+                                        <DetailRow icon={Megaphone} label="How Did You Hear" value={viewEnquiry?.howDidYouHear} />
                                     )}
                                 </div>
                             </div>
-
                             <Separator />
-
-                            {/* Project Info */}
                             <div>
                                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Project Info</p>
                                 <div className="grid grid-cols-2 gap-3">
-                                    <DetailRow icon={Package}   label="Product Type"        value={viewEnquiry?.productType} />
-                                    <DetailRow icon={BookOpen}  label="Binding Type"         value={viewEnquiry?.bindingType} />
-                                    <DetailRow icon={FileText}  label="Approx. Quantity"     value={viewEnquiry?.approximateQuantity} />
+                                    <DetailRow icon={Package}  label="Product Type" value={viewEnquiry?.productType} />
+                                    <DetailRow icon={BookOpen} label="Binding Type" value={viewEnquiry?.bindingType} />
+                                    <DetailRow icon={FileText} label="Approx. Qty"  value={viewEnquiry?.approximateQuantity} />
                                     {viewEnquiry?.requiredDeliveryDate && (
-                                        <DetailRow icon={Calendar} label="Delivery Date" value={viewEnquiry.requiredDeliveryDate} />
+                                        <DetailRow icon={Calendar} label="Delivery Date" value={viewEnquiry?.requiredDeliveryDate} />
                                     )}
                                     <div className="col-span-2">
                                         <DetailRow icon={Sparkles} label="Specialty Finishing" value={viewEnquiry?.specialtyFinishing} />
                                     </div>
                                     {viewEnquiry?.projectDescription && (
                                         <div className="col-span-2">
-                                            <DetailRow icon={FileText} label="Project Description" value={viewEnquiry.projectDescription} />
+                                            <DetailRow icon={FileText} label="Project Description" value={viewEnquiry?.projectDescription} />
                                         </div>
                                     )}
                                 </div>
                             </div>
-
-
-
                             <div className="text-xs text-muted-foreground border-t pt-3">
-                                Received on{' '}
-                                {new Date(viewEnquiry.createdAt).toLocaleDateString('en-US', {
-                                    year: 'numeric', month: 'long', day: 'numeric',
-                                })}
+                                Received on {formatDate(viewEnquiry?.createdAt)}
                             </div>
                         </div>
                     )}
                 </DialogContent>
             </Dialog>
 
-            {/* ── Delete Dialog ───────────────────────────────────────────── */}
-            <AlertDialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setDeleteId(null); }}>
+            {/* ── Delete Dialog ────────────────────────────────────────────── */}
+            <AlertDialog
+                open={dialogOpen}
+                onOpenChange={(open) => {
+                    setDialogOpen(open);
+                    if (!open) setDeleteId(null);
+                }}
+            >
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>

@@ -29,12 +29,25 @@ export interface UpdateEnquiryPayload {
   notes?: string;
 }
 
-export interface GetEnquiriesParams {
+// ── Shared date filter params (reused in list + export) ───────────────────
+export interface DateRangeParams {
+  startDate?: string; // YYYY-MM-DD
+  endDate?: string;   // YYYY-MM-DD
+}
+
+export interface GetEnquiriesParams extends DateRangeParams {
   productType?: string;
   country?: string;
   status?: EnquiryStatus;
   page?: number;
   limit?: number;
+}
+
+// Export has no page/limit — only filters
+export interface ExportEnquiriesParams extends DateRangeParams {
+  productType?: string;
+  country?: string;
+  status?: EnquiryStatus;
 }
 
 interface ApiResponse<T> {
@@ -57,13 +70,13 @@ export interface PaginatedEnquiries {
   pagination: PaginationMeta;
 }
 
-// POST create enquiry (public)
+// POST — create enquiry (public)
 export const createEnquiry = async (payload: CreateEnquiryPayload): Promise<Enquiry> => {
   const response = await httpClient.post<ApiResponse<Enquiry>>("enquiries", payload);
   return response.data.data;
 };
 
-// GET all enquiries (admin protected)
+// GET — all enquiries paginated (admin protected)
 export const getAllEnquiries = async (
   params: GetEnquiriesParams = {}
 ): Promise<PaginatedEnquiries> => {
@@ -72,25 +85,35 @@ export const getAllEnquiries = async (
     { params }
   );
   return {
-    data: response.data.data,
+    data:       response.data.data,
     pagination: response.data.pagination,
   };
 };
 
-// GET single enquiry by id (admin protected)
+// GET — export all matching enquiries, no pagination (admin protected)
+export const exportEnquiries = async (
+  params: ExportEnquiriesParams = {}
+): Promise<Enquiry[]> => {
+  const response = await httpClient.get<ApiResponse<Enquiry[]>>(
+    "enquiries/export",
+    { params }
+  );
+  return response.data.data;
+};
+
+// GET — single enquiry by id (admin protected)
 export const getEnquiryById = async (id: string): Promise<Enquiry> => {
   const response = await httpClient.get<ApiResponse<Enquiry>>(`enquiries/${id}`);
   return response.data.data;
 };
 
-// PATCH update enquiry status + notes (admin protected)
+// PATCH — update enquiry status + notes (admin protected)
 export const updateEnquiry = async (id: string, payload: UpdateEnquiryPayload): Promise<Enquiry> => {
   const response = await httpClient.patch<ApiResponse<Enquiry>>(`enquiries/${id}`, payload);
   return response.data.data;
 };
 
-// DELETE enquiry (admin protected)
-export const deleteEnquiry = async (id: string): Promise<Enquiry> => {
-  const response = await httpClient.delete<ApiResponse<Enquiry>>(`enquiries/${id}`);
-  return response.data.data;
+// DELETE — enquiry (admin protected)
+export const deleteEnquiry = async (id: string): Promise<void> => {
+  await httpClient.delete<ApiResponse<Enquiry>>(`enquiries/${id}`);
 };

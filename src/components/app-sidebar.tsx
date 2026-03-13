@@ -37,7 +37,7 @@ const data = {
     },
     {
       title: "Inquiries",
-      url: "/dashboard/enquiries",
+      url: "/dashboard/inquiries",
       icon: Mail,
     },
   ],

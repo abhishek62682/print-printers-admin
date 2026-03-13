@@ -1,11 +1,11 @@
 import { create } from "zustand";
 import { devtools, persist } from "zustand/middleware";
-import type { AuthUser } from "@/config/api/auth.api";
+import type { Profile } from "@/config/api/profile.api";
 
 interface ProfileState {
-  profile: AuthUser | null;
+  profile: Profile | null;
 
-  setProfile: (user: AuthUser) => void;
+  setProfile:   (profile: Profile) => void;
   clearProfile: () => void;
 }
 
@@ -15,23 +15,17 @@ export const useProfileStore = create<ProfileState>()(
       (set) => ({
         profile: null,
 
-        
-        setProfile: (user) =>
-          set({ profile: user }, false, "profile/setProfile"),
+        setProfile: (profile) =>
+          set({ profile }, false, "profile/setProfile"),
 
-        
         clearProfile: () =>
           set({ profile: null }, false, "profile/clearProfile"),
       }),
       {
         name: "profile-storage",
-        partialize: (state) => ({
-          profile: state.profile,
-        }),
+        partialize: (state) => ({ profile: state.profile }),
       }
     ),
-    {
-      name: "ProfileStore",
-    }
+    { name: "ProfileStore" }
   )
 );

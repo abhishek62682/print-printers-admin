@@ -56,6 +56,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ImageOff, MoreHorizontal, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '@/Utils/constant';
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 
@@ -90,10 +91,14 @@ const BlogsPage = () => {
             queryClient.invalidateQueries({ queryKey: ['blogs'] });
             setDialogOpen(false);
             setDeleteId(null);
-            toast.success('Blog deleted successfully.');
+            toast.success('Blog deleted', {
+                description: 'The blog post has been permanently removed.',
+            });
         },
         onError: () => {
-            toast.error('Failed to delete blog.');
+            toast.error('Failed to delete blog', {
+                description: 'Something went wrong. Please try again.',
+            });
         },
     });
 
@@ -162,7 +167,6 @@ const BlogsPage = () => {
                                 Manage blog posts published on your site.
                             </CardDescription>
                         </div>
-                        {/* Status filter */}
                         <Select value={status} onValueChange={handleStatusChange}>
                             <SelectTrigger className="w-[140px]">
                                 <SelectValue placeholder="Filter status" />
@@ -203,11 +207,10 @@ const BlogsPage = () => {
                             <TableBody>
                                 {blogs.map((blog: Blog) => (
                                     <TableRow key={blog._id}>
-                                        {/* Cover Image */}
                                         <TableCell className="hidden sm:table-cell">
                                             {blog?.coverImage ? (
                                                 <img
-                                                    src={`http://localhost:3000/${blog.coverImage}`}
+                                                    src={`${API_BASE_URL}/${blog.coverImage}`}
                                                     alt={blog?.title ?? ''}
                                                     className="h-10 w-10 rounded-md object-cover"
                                                 />
@@ -218,17 +221,14 @@ const BlogsPage = () => {
                                             )}
                                         </TableCell>
 
-                                        {/* Title */}
                                         <TableCell className="font-medium max-w-[180px]">
                                             <p className="truncate">{blog?.title ?? '—'}</p>
                                         </TableCell>
 
-                                        {/* Author */}
                                         <TableCell className="text-sm text-muted-foreground">
                                             {blog?.createdBy?.username ?? '—'}
                                         </TableCell>
 
-                                        {/* Tags */}
                                         <TableCell className="hidden md:table-cell">
                                             {(blog?.tags?.length ?? 0) > 0 ? (
                                                 <div className="flex flex-wrap gap-1">
@@ -248,22 +248,17 @@ const BlogsPage = () => {
                                             )}
                                         </TableCell>
 
-                                        {/* Toggle */}
                                         <TableCell>
                                             <Switch
-                                             className={blog?.isActive ? "bg-col-blue" : "bg-gray-300"}
+                                                className={blog?.isActive ? 'bg-col-blue' : 'bg-gray-300'}
                                                 checked={blog?.isActive ?? false}
                                                 disabled={toggleMutation.isPending}
                                                 onCheckedChange={(checked) =>
-                                                    toggleMutation.mutate({
-                                                        id: blog._id,
-                                                        isActive: checked,
-                                                    })
+                                                    toggleMutation.mutate({ id: blog._id, isActive: checked })
                                                 }
                                             />
                                         </TableCell>
 
-                                        {/* Created At */}
                                         <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
                                             {blog?.createdAt
                                                 ? new Date(blog.createdAt).toLocaleDateString('en-US', {
@@ -274,7 +269,6 @@ const BlogsPage = () => {
                                                 : '—'}
                                         </TableCell>
 
-                                        {/* Actions */}
                                         <TableCell>
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>
@@ -286,9 +280,7 @@ const BlogsPage = () => {
                                                 <DropdownMenuContent align="end">
                                                     <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                                     <DropdownMenuItem
-                                                        onClick={() =>
-                                                            navigate(`/dashboard/blogs/${blog._id}/edit`)
-                                                        }
+                                                        onClick={() => navigate(`/dashboard/blogs/${blog._id}/edit`)}
                                                     >
                                                         Edit
                                                     </DropdownMenuItem>
@@ -325,7 +317,6 @@ const BlogsPage = () => {
                 </CardContent>
 
                 <CardFooter className="flex items-center justify-between">
-                    {/* Count */}
                     <div className="text-xs text-muted-foreground">
                         {pagination && pagination.total > 0 ? (
                             <>
@@ -341,7 +332,6 @@ const BlogsPage = () => {
                     </div>
 
                     <div className="flex items-center gap-4">
-                        {/* Rows per page */}
                         <div className="flex items-center gap-2">
                             <span className="text-xs text-muted-foreground whitespace-nowrap">Rows per page</span>
                             <Select value={String(limit)} onValueChange={handleLimitChange}>
@@ -358,7 +348,6 @@ const BlogsPage = () => {
                             </Select>
                         </div>
 
-                        {/* Pagination controls */}
                         {pagination && pagination.totalPages > 1 && (
                             <div className="flex items-center gap-2">
                                 <Button
@@ -388,7 +377,6 @@ const BlogsPage = () => {
                 </CardFooter>
             </Card>
 
-            {/* Delete Confirmation Dialog */}
             <AlertDialog
                 open={dialogOpen}
                 onOpenChange={(open) => {
