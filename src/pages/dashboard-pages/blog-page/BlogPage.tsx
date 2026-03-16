@@ -53,7 +53,7 @@ import { toast } from 'sonner';
 import { getAllBlogs, deleteBlog, updateBlog } from '@/config/api/blogs.api';
 import type { Blog, GetBlogsParams } from '@/config/api/blogs.api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ImageOff, MoreHorizontal, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ImageOff, MoreHorizontal, Plus, ChevronLeft, ChevronRight, LoaderCircle } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '@/Utils/constant';
@@ -182,7 +182,8 @@ const BlogsPage = () => {
 
                 <CardContent>
                     {isLoading && (
-                        <div className="py-16 text-center text-sm text-muted-foreground">
+                        <div className="flex items-center justify-center py-16 text-sm text-muted-foreground gap-2">
+                            <LoaderCircle className="animate-spin h-4 w-4" />
                             Loading blogs...
                         </div>
                     )}
@@ -191,7 +192,7 @@ const BlogsPage = () => {
                             Failed to load blogs. Please try again.
                         </div>
                     )}
-                    {!isLoading && !isError && (
+                    {!isLoading && !isError && (blogs?.length ?? 0) > 0 && (
                         <Table>
                             <TableHeader>
                                 <TableRow>
@@ -205,13 +206,13 @@ const BlogsPage = () => {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {blogs.map((blog: Blog) => (
-                                    <TableRow key={blog._id}>
+                                {blogs?.map((blog: Blog) => (
+                                    <TableRow key={blog?._id}>
                                         <TableCell className="hidden sm:table-cell">
                                             {blog?.coverImage ? (
                                                 <img
                                                     src={`${API_BASE_URL}/${blog.coverImage}`}
-                                                    alt={blog?.title ?? ''}
+                                                    alt={blog?.coverImageAlt ?? blog?.title ?? 'Blog cover'}
                                                     className="h-10 w-10 rounded-md object-cover"
                                                 />
                                             ) : (
@@ -232,14 +233,14 @@ const BlogsPage = () => {
                                         <TableCell className="hidden md:table-cell">
                                             {(blog?.tags?.length ?? 0) > 0 ? (
                                                 <div className="flex flex-wrap gap-1">
-                                                    {blog.tags.slice(0, 3).map((tag) => (
+                                                    {blog?.tags?.slice(0, 3)?.map((tag) => (
                                                         <Badge key={tag} variant="outline" className="text-xs">
                                                             {tag}
                                                         </Badge>
                                                     ))}
-                                                    {blog.tags.length > 3 && (
+                                                    {(blog?.tags?.length ?? 0) > 3 && (
                                                         <Badge variant="outline" className="text-xs">
-                                                            +{blog.tags.length - 3}
+                                                            +{(blog?.tags?.length ?? 0) - 3}
                                                         </Badge>
                                                     )}
                                                 </div>
@@ -250,11 +251,11 @@ const BlogsPage = () => {
 
                                         <TableCell>
                                             <Switch
-                                                className={blog?.isActive ? 'bg-col-blue' : 'bg-gray-300'}
+                                                className={blog?.isActive ? 'bg-[#31A2FF]' : 'bg-gray-300'}
                                                 checked={blog?.isActive ?? false}
-                                                disabled={toggleMutation.isPending}
+                                                disabled={toggleMutation?.isPending}
                                                 onCheckedChange={(checked) =>
-                                                    toggleMutation.mutate({ id: blog._id, isActive: checked })
+                                                    toggleMutation?.mutate({ id: blog._id, isActive: checked })
                                                 }
                                             />
                                         </TableCell>
@@ -280,15 +281,15 @@ const BlogsPage = () => {
                                                 <DropdownMenuContent align="end">
                                                     <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                                     <DropdownMenuItem
-                                                        onClick={() => navigate(`/dashboard/blogs/${blog._id}/edit`)}
+                                                        onClick={() => navigate(`/dashboard/blogs/${blog?._id}/edit`)}
                                                     >
                                                         Edit
                                                     </DropdownMenuItem>
                                                     <DropdownMenuItem
                                                         className="text-destructive focus:text-destructive"
                                                         onSelect={(e) => {
-                                                            e.preventDefault();
-                                                            handleDeleteClick(blog._id);
+                                                            e?.preventDefault();
+                                                            handleDeleteClick(blog?._id);
                                                         }}
                                                     >
                                                         Delete
@@ -298,33 +299,29 @@ const BlogsPage = () => {
                                         </TableCell>
                                     </TableRow>
                                 ))}
-
-                                {blogs.length === 0 && (
-                                    <TableRow>
-                                        <TableCell
-                                            colSpan={7}
-                                            className="py-16 text-center text-sm text-muted-foreground"
-                                        >
-                                            {status !== 'all'
-                                                ? `No ${status} blogs found. Try changing the filter.`
-                                                : 'No blogs found. Create your first one!'}
-                                        </TableCell>
-                                    </TableRow>
-                                )}
                             </TableBody>
                         </Table>
+                    )}
+
+                    {!isLoading && !isError && (blogs?.length ?? 0) === 0 && (
+                        <div className="py-16 text-center text-sm text-muted-foreground">
+                            {status !== 'all'
+                                ? `No ${status} blogs found. Try changing the filter.`
+                                : 'No blogs found. Create your first one!'}
+                        </div>
                     )}
                 </CardContent>
 
                 <CardFooter className="flex items-center justify-between">
                     <div className="text-xs text-muted-foreground">
-                        {pagination && pagination.total > 0 ? (
+                        {pagination && pagination?.total > 0 ? (
                             <>
                                 Showing{' '}
                                 <strong>
-                                    {(page - 1) * limit + 1}–{Math.min(page * limit, pagination.total)}
+                                    {((pagination?.page ?? 1) - 1) * (pagination?.limit ?? 10) + 1}–
+                                    {Math.min((pagination?.page ?? 1) * (pagination?.limit ?? 10), pagination?.total ?? 0)}
                                 </strong>{' '}
-                                of <strong>{pagination.total}</strong> blog{pagination.total !== 1 ? 's' : ''}
+                                of <strong>{pagination?.total ?? 0}</strong> blog{pagination?.total !== 1 ? 's' : ''}
                             </>
                         ) : (
                             <>Showing <strong>0</strong> blogs</>
@@ -339,7 +336,7 @@ const BlogsPage = () => {
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {PAGE_SIZE_OPTIONS.map((size) => (
+                                    {PAGE_SIZE_OPTIONS?.map((size) => (
                                         <SelectItem key={size} value={String(size)} className="text-xs">
                                             {size}
                                         </SelectItem>
@@ -348,25 +345,25 @@ const BlogsPage = () => {
                             </Select>
                         </div>
 
-                        {pagination && pagination.totalPages > 1 && (
+                        {pagination && (pagination?.totalPages ?? 0) > 1 && (
                             <div className="flex items-center gap-2">
                                 <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={() => setPage((p) => p - 1)}
-                                    disabled={!pagination?.hasPrevPage || isLoading}
+                                    disabled={!(pagination?.hasPrevPage) || isLoading}
                                 >
                                     <ChevronLeft className="h-4 w-4" />
                                     Prev
                                 </Button>
                                 <span className="text-xs text-muted-foreground">
-                                    Page {pagination?.page} of {pagination?.totalPages}
+                                    Page {pagination?.page ?? 1} of {pagination?.totalPages ?? 1}
                                 </span>
                                 <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={() => setPage((p) => p + 1)}
-                                    disabled={!pagination?.hasNextPage || isLoading}
+                                    disabled={!(pagination?.hasNextPage) || isLoading}
                                 >
                                     Next
                                     <ChevronRight className="h-4 w-4" />
@@ -393,15 +390,15 @@ const BlogsPage = () => {
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel disabled={deleteMutation.isPending}>
+                        <AlertDialogCancel disabled={deleteMutation?.isPending}>
                             Cancel
                         </AlertDialogCancel>
                         <AlertDialogAction
-                            onClick={() => deleteMutation.mutate()}
-                            disabled={deleteMutation.isPending}
+                            onClick={() => deleteMutation?.mutate()}
+                            disabled={deleteMutation?.isPending}
                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                         >
-                            {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+                            {deleteMutation?.isPending ? 'Deleting...' : 'Delete'}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

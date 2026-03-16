@@ -6,6 +6,7 @@ export interface Profile {
   email:        string;
   profileImage: string | null;
   isVerified:   boolean;
+  role: "SUPER_ADMIN" | "BLOG_MANAGER"
 }
 
 export interface UpdateProfilePayload {

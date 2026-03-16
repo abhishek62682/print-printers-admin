@@ -11,37 +11,22 @@ import {
   SidebarMenu,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import {  LayoutDashboard, Mail, MessageSquare, Newspaper } from "lucide-react"
+import {  History, LayoutDashboard, Mail, MessageSquare, Newspaper, ShieldCheck, Users } from "lucide-react"
+
+
+import { ROLE_GROUPS } from "@/config/roles";
 
 const data = {
-  user: {
-    name: "Print Printers",
-    email: "print@printprinters.com",
-    avatar: "/avatars/admin.jpg",
-  },
   navMain: [
-    {
-      title: "Dashboard",
-      url: "/dashboard/home",
-      icon: LayoutDashboard,
-    },
-    {
-      title: "Testimonials",
-      url: "/dashboard/testimonials",
-      icon: MessageSquare,
-    },
-    {
-      title: "Blogs",
-      url: "/dashboard/blogs",
-      icon: Newspaper,
-    },
-    {
-      title: "Inquiries",
-      url: "/dashboard/inquiries",
-      icon: Mail,
-    },
+   { title: "Dashboard",    url: "/dashboard/home",         icon: LayoutDashboard, roles: ROLE_GROUPS.SUPER_ADMIN         },
+  { title: "Blogs",        url: "/dashboard/blogs",        icon: Newspaper,       roles: ROLE_GROUPS.ALL         },
+  { title: "Testimonials", url: "/dashboard/testimonials", icon: MessageSquare,   roles: ROLE_GROUPS.SUPER_ADMIN },
+  { title: "Inquiries",    url: "/dashboard/inquiries",    icon: Mail,            roles: ROLE_GROUPS.SUPER_ADMIN },
+  { title: "My Activity",  url: "/dashboard/my-activity",  icon: History,         roles: ROLE_GROUPS.ALL         },
+  { title: "Audit Logs",   url: "/dashboard/audit-logs",   icon: ShieldCheck,     roles: ROLE_GROUPS.SUPER_ADMIN },
+  { title: "Users",        url: "/dashboard/users",        icon: Users,           roles: ROLE_GROUPS.SUPER_ADMIN },
   ],
-}
+};
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
@@ -67,7 +52,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavSecondary items={data.navSecondary} className="mt-auto" /> */}
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser  />
       </SidebarFooter>
     </Sidebar>
   )

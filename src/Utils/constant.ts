@@ -13,6 +13,9 @@ export const PAGE_TITLES = {
   "/dashboard/blogs/:id/edit": "Edit Blog",
 
   "/dashboard/inquiries": "Inquiries",
+
+  "/dashboard/my-activity": "My Activity",
+  "/dashboard/audit-logs": "Audit Logs",
 };
 
 export const getPageTitle = (pathname: string) => {

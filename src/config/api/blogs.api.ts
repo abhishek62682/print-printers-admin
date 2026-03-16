@@ -6,18 +6,30 @@ export interface BlogCreatedBy {
   email: string;
 }
 
+export interface BlogSEO {
+  metaTitle?: string;
+  metaDescription?: string;
+  metaKeywords?: string[];
+  canonicalUrl?: string;
+}
+
 export interface Blog {
   _id: string;
   title: string;
   content: string;
-  coverImage: string | null;
-  bannerImage: string | null;
-  tags: string[];
-  createdBy: BlogCreatedBy;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-  __v: number;
+  excerpt?: string;
+  coverImage?: string | null;
+  coverImageAlt?: string;
+  bannerImage?: string | null;
+  bannerImageAlt?: string;
+  tags?: string[];
+  seo?: BlogSEO;
+  createdBy?: BlogCreatedBy;
+  isActive?: boolean;
+  slug?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  __v?: number;
 }
 
 export interface PaginationMeta {
@@ -47,7 +59,6 @@ export interface PaginatedBlogs {
   pagination: PaginationMeta;
 }
 
-// GET all blogs with pagination + status filter
 export const getAllBlogs = async (
   params: GetBlogsParams = {}
 ): Promise<PaginatedBlogs> => {
@@ -64,35 +75,38 @@ export const getAllBlogs = async (
   );
 
   return {
-    data: response.data.data,
-    pagination: response.data.pagination!,
+    data: response.data.data ?? [],
+    pagination: response.data.pagination ?? {
+      total: 0,
+      page: 1,
+      limit: 10,
+      totalPages: 0,
+      hasNextPage: false,
+      hasPrevPage: false,
+    },
   };
 };
 
-// GET single blog by id (public)
 export const getBlogById = async (id: string): Promise<Blog> => {
   const response = await httpClient.get<ApiResponse<Blog>>(`/blogs/${id}`);
-  return response.data.data;
+  return response.data.data ?? {};
 };
 
-// POST create blog (protected, with coverImage + bannerImage)
 export const createBlog = async (formData: FormData): Promise<Blog> => {
   const response = await httpClient.post<ApiResponse<Blog>>("/blogs", formData, {
     headers: { "Content-Type": "multipart/form-data" },
   });
-  return response.data.data;
+  return response.data.data ?? {};
 };
 
-// PATCH update blog (protected, with optional coverImage + bannerImage)
 export const updateBlog = async (id: string, formData: FormData): Promise<Blog> => {
   const response = await httpClient.patch<ApiResponse<Blog>>(`/blogs/${id}`, formData, {
     headers: { "Content-Type": "multipart/form-data" },
   });
-  return response.data.data;
+  return response.data.data ?? {};
 };
 
-// DELETE blog (protected)
 export const deleteBlog = async (id: string): Promise<Blog> => {
-  const response = await httpClient.delete<ApiResponse<Blog>>(`blogs/${id}`);
-  return response.data.data;
+  const response = await httpClient.delete<ApiResponse<Blog>>(`/blogs/${id}`);
+  return response.data.data ?? {};
 };
