@@ -1,4 +1,6 @@
 import * as React from "react"
+
+
 import { NavMain } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
 import {
@@ -6,10 +8,13 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
+  SidebarMenu,
+  SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { History, LayoutDashboard, Mail, MessageSquare, Newspaper, ShieldCheck, Users, LoaderCircle } from "lucide-react"
+import {  History, LayoutDashboard, Mail, MessageSquare, Newspaper, ShieldCheck, Users } from "lucide-react"
+
+
 import { ROLE_GROUPS } from "@/config/roles";
-import { useProfileStore } from "@/config/store/profile";
 
 const data = {
   navMain: [ 
@@ -24,27 +29,31 @@ const data = {
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const profile = useProfileStore((s) => s.profile);
-
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
-        <a href="/dashboard/home">
-          <img className="w-40" src="/logo.png" alt="" />
-        </a>
+        <SidebarMenu>
+          <SidebarMenuItem>
+           
+             
+              <a  href="/dashboard/home">
+              <img className="w-40" src="/logo.png" alt="" />
+
+               
+               
+              </a>
+           
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        {!profile ? (
-          <div className="flex items-center justify-center py-16">
-            <LoaderCircle className="h-6 w-6 animate-spin" />
-          </div>
-        ) : (
-          <NavMain items={data.navMain} />
-        )}
+        <NavMain items={data.navMain} />
+        {/* <NavDocuments items={data.documents} />
+        <NavSecondary items={data.navSecondary} className="mt-auto" /> */}
       </SidebarContent>
       <SidebarFooter>
-        <NavUser />
+        <NavUser  />
       </SidebarFooter>
     </Sidebar>
-  );
+  )
 }
