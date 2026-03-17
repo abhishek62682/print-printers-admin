@@ -6,8 +6,6 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
-  SidebarMenu,
-  SidebarMenuItem,
 } from "@/components/ui/sidebar"
 import { History, LayoutDashboard, Mail, MessageSquare, Newspaper, ShieldCheck, Users, LoaderCircle } from "lucide-react"
 import { ROLE_GROUPS } from "@/config/roles";
@@ -28,38 +26,21 @@ const data = {
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const profile = useProfileStore((s) => s.profile);
 
-  
-  if (!profile) {
-    return (
-      <Sidebar collapsible="offcanvas" {...props}>
-        <SidebarHeader>
-          <a href="/dashboard/home">
-            <img className="w-40" src="/logo.png" alt="" />
-          </a>
-        </SidebarHeader>
-        <SidebarContent className="flex items-center justify-center py-16">
-          <div className="flex flex-col items-center gap-2 text-muted-foreground">
-            <LoaderCircle className="h-6 w-6 animate-spin" />
-            <p className="text-sm">Loading...</p>
-          </div>
-        </SidebarContent>
-      </Sidebar>
-    );
-  }
-
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <a href="/dashboard/home">
-              <img className="w-40" src="/logo.png" alt="" />
-            </a>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <a href="/dashboard/home">
+          <img className="w-40" src="/logo.png" alt="" />
+        </a>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
+        {!profile ? (
+          <div className="flex items-center justify-center py-16">
+            <LoaderCircle className="h-6 w-6 animate-spin" />
+          </div>
+        ) : (
+          <NavMain items={data.navMain} />
+        )}
       </SidebarContent>
       <SidebarFooter>
         <NavUser />
