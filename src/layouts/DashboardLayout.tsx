@@ -9,6 +9,7 @@ import { getProfile } from "@/config/api/profile.api";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { getPageTitle } from "@/Utils/constant";
+import { LoaderCircle } from "lucide-react";
 
 export default function DashboardLayout() {
   const location = useLocation();
@@ -16,7 +17,7 @@ export default function DashboardLayout() {
   const { isAuthenticated, email } = useAuthStore((store) => store?.user);
   const { setProfile } = useProfileStore();
 
-  const { data } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ["profile"],
     queryFn: getProfile,
     enabled: isAuthenticated,
@@ -31,7 +32,17 @@ export default function DashboardLayout() {
     return <Navigate to="/auth/login" />;
   }
 
- 
+  // Show loader while profile is loading
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="flex flex-col items-center gap-3">
+          <LoaderCircle className="h-8 w-8 animate-spin text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   const title = getPageTitle(location.pathname);
 
