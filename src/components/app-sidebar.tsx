@@ -1,6 +1,4 @@
 import * as React from "react"
-
-
 import { NavMain } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
 import {
@@ -11,10 +9,9 @@ import {
   SidebarMenu,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import {  History, LayoutDashboard, Mail, MessageSquare, Newspaper, ShieldCheck, Users } from "lucide-react"
-
-
+import { History, LayoutDashboard, Mail, MessageSquare, Newspaper, ShieldCheck, Users, LoaderCircle } from "lucide-react"
 import { ROLE_GROUPS } from "@/config/roles";
+import { useProfileStore } from "@/config/store/profile";
 
 const data = {
   navMain: [ 
@@ -29,31 +26,44 @@ const data = {
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const profile = useProfileStore((s) => s.profile);
+
+  
+  if (!profile) {
+    return (
+      <Sidebar collapsible="offcanvas" {...props}>
+        <SidebarHeader>
+          <a href="/dashboard/home">
+            <img className="w-40" src="/logo.png" alt="" />
+          </a>
+        </SidebarHeader>
+        <SidebarContent className="flex items-center justify-center py-16">
+          <div className="flex flex-col items-center gap-2 text-muted-foreground">
+            <LoaderCircle className="h-6 w-6 animate-spin" />
+            <p className="text-sm">Loading...</p>
+          </div>
+        </SidebarContent>
+      </Sidebar>
+    );
+  }
+
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-           
-             
-              <a  href="/dashboard/home">
+            <a href="/dashboard/home">
               <img className="w-40" src="/logo.png" alt="" />
-
-               
-               
-              </a>
-           
+            </a>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={data.navMain} />
-        {/* <NavDocuments items={data.documents} />
-        <NavSecondary items={data.navSecondary} className="mt-auto" /> */}
       </SidebarContent>
       <SidebarFooter>
-        <NavUser  />
+        <NavUser />
       </SidebarFooter>
     </Sidebar>
-  )
+  );
 }
