@@ -190,6 +190,7 @@ const EnquiriesPage = () => {
             updateEnquiry(id, { status }),
         onSuccess: (_, { status }) => {
             queryClient.invalidateQueries({ queryKey: ['enquiries'] });
+            queryClient.invalidateQueries({queryKey:['stats']})
             if (viewEnquiry) setViewEnquiry((prev) => prev ? { ...prev, status } : prev);
             toast.success('Status updated', {
                 description: `Enquiry marked as ${STATUS_CONFIG[status]?.label ?? status}.`,
@@ -418,6 +419,7 @@ const EnquiriesPage = () => {
                                     <TableHead className="text-xs">Name</TableHead>
                                     <TableHead className="text-xs">Company</TableHead>
                                     <TableHead className="text-xs">Email</TableHead>
+                                    <TableHead className="hidden text-xs lg:table-cell">Phone</TableHead>
                                     <TableHead className="hidden text-xs md:table-cell">Product Type</TableHead>
                                     <TableHead className="text-xs">Status</TableHead>
                                     <TableHead className="hidden text-xs md:table-cell">Received</TableHead>
@@ -435,6 +437,9 @@ const EnquiriesPage = () => {
                                         </TableCell>
                                         <TableCell className="text-sm max-w-[180px]">
                                             <p className="truncate">{enquiry?.email ?? '—'}</p>
+                                        </TableCell>
+                                        <TableCell className="hidden lg:table-cell text-sm text-muted-foreground max-w-[140px]">
+                                            <p className="truncate">{enquiry?.phoneNumber ?? '—'}</p>
                                         </TableCell>
                                         <TableCell className="hidden md:table-cell">
                                             <Badge variant="outline" className="text-xs">
@@ -499,7 +504,7 @@ const EnquiriesPage = () => {
                                 ))}
                                 {enquiries.length === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={7} className="py-16 text-center text-sm text-muted-foreground">
+                                        <TableCell colSpan={8} className="py-16 text-center text-sm text-muted-foreground">
                                             {statusFilter !== 'all'
                                                 ? `No ${STATUS_CONFIG[statusFilter as EnquiryStatus]?.label} enquiries found.`
                                                 : isFilterApplied

@@ -17,7 +17,7 @@ import {  History, LayoutDashboard, Mail, MessageSquare, Newspaper, ShieldCheck,
 import { ROLE_GROUPS } from "@/config/roles";
 
 const data = {
-  navMain: [
+  navMain: [ 
    { title: "Dashboard",    url: "/dashboard/home",         icon: LayoutDashboard, roles: ROLE_GROUPS.SUPER_ADMIN         },
   { title: "Blogs",        url: "/dashboard/blogs",        icon: Newspaper,       roles: ROLE_GROUPS.ALL         },
   { title: "Testimonials", url: "/dashboard/testimonials", icon: MessageSquare,   roles: ROLE_GROUPS.SUPER_ADMIN },

@@ -271,17 +271,16 @@ const MyAuditLogsPage = () => {
                                                     </span>
                                                 </div>
                                             </TableCell>
-
-                                            <TableCell>
-                                                <div className="max-w-[150px]">
-                                                    <p className="text-sm font-medium truncate">
-                                                        {log?.targetLabel || '—'}
-                                                    </p>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        {log?.message ? log.message.substring(0, 30) + '...' : '—'}
-                                                    </p>
-                                                </div>
-                                            </TableCell>
+<TableCell>
+    <div className="max-w-sm">
+        <p className="text-sm font-medium break-words">
+            {log?.targetLabel || '—'}
+        </p>
+        <p className="text-xs text-muted-foreground break-words">
+            {log?.message || '—'}
+        </p>
+    </div>
+</TableCell>
 
                                             <TableCell>
                                                 <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${log?.status === 'SUCCESS' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>

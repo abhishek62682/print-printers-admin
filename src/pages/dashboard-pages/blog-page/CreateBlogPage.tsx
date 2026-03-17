@@ -227,7 +227,11 @@ const CreateBlog = () => {
     return (
         <section>
             <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)}>
+               <form onSubmit={form.handleSubmit(onSubmit, () => {
+  toast.error("Please fix the errors", {
+    description: "Fill in all required fields correctly before submitting.",
+  });
+})}>
                     <Breadcrumb>
                         <BreadcrumbList>
                             <BreadcrumbItem>
@@ -278,10 +282,11 @@ const CreateBlog = () => {
                                         <FormItem>
                                             <FormLabel>Content <Required /></FormLabel>
                                             <FormControl>
-                                                <JoditEditor
-                                                    value={field.value}
-                                                    onBlur={(newContent) => field.onChange(newContent)}
-                                                />
+                                               <JoditEditor
+  value={field.value}
+  onChange={(newContent) => field.onChange(newContent)}  
+  onBlur={(newContent) => field.onChange(newContent)}
+/>
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -359,11 +364,11 @@ const CreateBlog = () => {
                                                 </p>
                                             </div>
                                             <FormControl>
-                                                <Switch
-                                                    className={isActiveValue ? 'bg-[#31A2FF]!' : 'bg-gray-300'}
-                                                    checked={field.value}
-                                                    onCheckedChange={field.onChange}
-                                                />
+<Switch
+  className={isActiveValue ? 'bg-col-blue' : 'bg-gray-300'}  // 👈 match testimonial
+  checked={field.value}
+  onCheckedChange={field.onChange}
+/>
                                             </FormControl>
                                         </FormItem>
                                     )}

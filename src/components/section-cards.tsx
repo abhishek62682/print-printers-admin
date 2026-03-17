@@ -1,4 +1,4 @@
-import { BookOpen, Inbox, Star, TrendingUp, LoaderCircle, AlertCircle } from 'lucide-react';
+import { BookOpen, Inbox, Star, TrendingUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import {
   Card,
@@ -7,9 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { getStats } from '@/config/api/dashboard.api';
 import type { StatsData } from '@/config/api/dashboard.api';
-import { useQuery } from '@tanstack/react-query';
 
 // ── Single stat card ───────────────────────────────────────────────────────
 const StatCard = ({
@@ -56,8 +54,8 @@ export function SectionCards({ data }: { data: StatsData }) {
       value:      data.blogs.total,
       icon:       BookOpen,
       badgeLabel: `${data.blogs.active} active`,
-      subLabel:   `${data.blogs.active} published`,
-      subValue:   `${data.blogs.inactive} inactive / unpublished`,
+      subLabel:   `${data.blogs.active} visible on site`,
+      subValue:   `${data.blogs.inactive} hidden`,
     },
     {
       title:      'Total Enquiries',
@@ -92,33 +90,4 @@ export function SectionCards({ data }: { data: StatsData }) {
       ))}
     </div>
   );
-}
-
-// ── Wrapper with loading/error state ──────────────────────────────────────
-export function SectionCardsWrapper() {
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['stats'],
-    queryFn:  () => getStats(),
-    staleTime: 30000,
-  });
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-10 text-sm text-muted-foreground gap-2">
-        <LoaderCircle className="animate-spin h-4 w-4" />
-        Loading stats...
-      </div>
-    );
-  }
-
-  if (isError || !data) {
-    return (
-      <div className="flex items-center justify-center py-10 text-sm text-destructive gap-2">
-        <AlertCircle className="h-4 w-4" />
-        Failed to load stats.
-      </div>
-    );
-  }
-
-  return <SectionCards data={data} />;
 }

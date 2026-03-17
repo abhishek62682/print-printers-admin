@@ -21,7 +21,7 @@ import { Separator } from '@/components/ui/separator';
 import { updateProfile, changePassword } from '@/config/api/profile.api';
 import { useMutation } from '@tanstack/react-query';
 import { useProfileStore } from '@/config/store/profile';
-import { LoaderCircle } from 'lucide-react';
+import { LoaderCircle, Eye, EyeOff } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -65,6 +65,11 @@ const getInitials = (name?: string) =>
 const ProfilePage = () => {
     const [imageFile, setImageFile]       = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [showPasswords, setShowPasswords] = useState({
+        currentPassword: false,
+        newPassword: false,
+        confirmPassword: false,
+    });
     const imageInputRef                   = useRef<HTMLInputElement | null>(null);
 
     const profile = useProfileStore((s) => s.profile);
@@ -127,6 +132,10 @@ const ProfilePage = () => {
             setImageFile(file);
             setImagePreview(URL.createObjectURL(file));
         }
+    };
+
+    const togglePasswordVisibility = (field: keyof typeof showPasswords) => {
+        setShowPasswords(prev => ({ ...prev, [field]: !prev[field] }));
     };
 
     const onProfileSubmit  = (values: ProfileFormValues) => {
@@ -290,11 +299,24 @@ const ProfilePage = () => {
                                             <FormItem>
                                                 <FormLabel>Old Password</FormLabel>
                                                 <FormControl>
-                                                    <Input
-                                                        type="password"
-                                                        placeholder="Enter your password"
-                                                        {...field}
-                                                    />
+                                                    <div className="relative">
+                                                        <Input
+                                                            type={showPasswords.currentPassword ? 'text' : 'password'}
+                                                            placeholder="Enter your password"
+                                                            {...field}
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => togglePasswordVisibility('currentPassword')}
+                                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                                                        >
+                                                            {showPasswords.currentPassword ? (
+                                                                <EyeOff className="h-4 w-4" />
+                                                            ) : (
+                                                                <Eye className="h-4 w-4" />
+                                                            )}
+                                                        </button>
+                                                    </div>
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
@@ -308,11 +330,24 @@ const ProfilePage = () => {
                                             <FormItem>
                                                 <FormLabel>New Password</FormLabel>
                                                 <FormControl>
-                                                    <Input
-                                                        type="password"
-                                                        placeholder="Enter your password"
-                                                        {...field}
-                                                    />
+                                                    <div className="relative">
+                                                        <Input
+                                                            type={showPasswords.newPassword ? 'text' : 'password'}
+                                                            placeholder="Enter your password"
+                                                            {...field}
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => togglePasswordVisibility('newPassword')}
+                                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                                                        >
+                                                            {showPasswords.newPassword ? (
+                                                                <EyeOff className="h-4 w-4" />
+                                                            ) : (
+                                                                <Eye className="h-4 w-4" />
+                                                            )}
+                                                        </button>
+                                                    </div>
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>
@@ -326,11 +361,24 @@ const ProfilePage = () => {
                                             <FormItem>
                                                 <FormLabel>New Password Again</FormLabel>
                                                 <FormControl>
-                                                    <Input
-                                                        type="password"
-                                                        placeholder="Enter your password"
-                                                        {...field}
-                                                    />
+                                                    <div className="relative">
+                                                        <Input
+                                                            type={showPasswords.confirmPassword ? 'text' : 'password'}
+                                                            placeholder="Enter your password"
+                                                            {...field}
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => togglePasswordVisibility('confirmPassword')}
+                                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                                                        >
+                                                            {showPasswords.confirmPassword ? (
+                                                                <EyeOff className="h-4 w-4" />
+                                                            ) : (
+                                                                <Eye className="h-4 w-4" />
+                                                            )}
+                                                        </button>
+                                                    </div>
                                                 </FormControl>
                                                 <FormMessage />
                                             </FormItem>

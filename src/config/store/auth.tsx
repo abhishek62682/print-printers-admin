@@ -7,7 +7,7 @@ interface AuthState {
     email: string | null
     isAuthenticated: boolean
   }
-  accessToken: string | null
+  isHydrated: boolean
 
   setEmail: (email: string) => void
   setAuth: (email: string, token: string) => void
@@ -22,8 +22,9 @@ export const useAuthStore = create<AuthState>()(
           email: null,
           isAuthenticated: false,
         },
-        accessToken: null,
+        isHydrated: false,
 
+        // Called after /login — carry email into verify-otp step
         setEmail: (email) =>
           set(
             (state) => ({
@@ -37,8 +38,8 @@ export const useAuthStore = create<AuthState>()(
             "auth/setEmail"
           ),
 
+        // Called after /verify-otp — store token in cookie, mark user as authenticated
         setAuth: (email, token) => {
-          console.log(token)
           Cookies.set("accessToken", token, {
             expires: 7,
             secure: true,
@@ -51,7 +52,6 @@ export const useAuthStore = create<AuthState>()(
                 email,
                 isAuthenticated: true,
               },
-              accessToken: token,
             },
             false,
             "auth/setAuth"
@@ -67,7 +67,6 @@ export const useAuthStore = create<AuthState>()(
                 email: null,
                 isAuthenticated: false,
               },
-              accessToken: null,
             },
             false,
             "auth/logout"
@@ -79,10 +78,13 @@ export const useAuthStore = create<AuthState>()(
         partialize: (state) => ({
           user: state.user,
         }),
+        onRehydrateStorage: () => (state) => {
+          if (state) state.isHydrated = true
+        },
       }
     ),
     {
-      name: "AuthStore", // 👈 Redux DevTools me ye naam dikhega
+      name: "AuthStore",
     }
   )
 )

@@ -1,13 +1,11 @@
 import { useState } from "react"
 import { useMutation } from "@tanstack/react-query"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useLocation } from "react-router-dom"
 import { toast } from "sonner"
 import type { AxiosError } from "axios"
 import { LoaderCircle } from "lucide-react"
 
-import { verifyOtp } from "@/config/api/auth.api"
-import { useAuthStore } from "@/config/store/auth"
-import { ROLES } from "@/config/roles"
+import { verifyResetOtp } from "@/config/api/auth.api"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field"
@@ -17,47 +15,37 @@ interface ApiErrorResponse {
   message: string
 }
 
-function OtpPage(props: React.ComponentProps<typeof Card>) {
+function VerifyResetOtpPage(props: React.ComponentProps<typeof Card>) {
   const [otp, setOtp] = useState("")
-
   const navigate = useNavigate()
+  const location = useLocation()
 
-  const email = useAuthStore((state) => state.user.email)
-  const setAuth = useAuthStore((state) => state.setAuth)
+  const email = location.state?.email as string | undefined
 
-  const otpMutation = useMutation({
-    mutationFn: verifyOtp,
-    onSuccess: (data) => {
-      const { token, role } = data.data
-
-      setAuth(email ?? "", token)
-
-      if (role === ROLES.SUPER_ADMIN) {
-        navigate("/dashboard/home")
-      } else if (role === ROLES.BLOG_MANAGER) {
-        navigate("/dashboard/blogs")
-      }
-
-      toast.success("Login successful", { description: "Welcome back!" })
+  const verifyResetOtpMutation = useMutation({
+    mutationFn: verifyResetOtp,
+    onSuccess: () => {
+      toast.success("OTP verified", {
+        description: "You can now set a new password.",
+      })
+      navigate("/auth/reset-password", { state: { email } })
     },
     onError: (error: AxiosError<ApiErrorResponse>) => {
       toast.error("Verification failed", {
-        description: error.response?.data?.message ?? "Invalid verification code.",
+        description: error.response?.data?.message ?? "Invalid or expired OTP.",
       })
     },
   })
 
   function onSubmitHandler(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-
     if (!email) {
-      toast.error("Session expired", { description: "Please login again." })
-      navigate("/auth/login")
+      toast.error("Session expired", { description: "Please start the reset process again." })
+      navigate("/auth/forgot-password")
       return
     }
-
     if (otp.length === 6) {
-      otpMutation.mutate({ email, otp })
+      verifyResetOtpMutation.mutate({ email, otp })
     } else {
       toast.error("Invalid code", { description: "Please enter the complete 6-digit code." })
     }
@@ -66,9 +54,7 @@ function OtpPage(props: React.ComponentProps<typeof Card>) {
   return (
     <Card {...props} className="border-0 max-w-md shadow-none mx-auto py-[60px] lg:py-1">
       <CardHeader className="lg:px-6 px-0">
-        <CardTitle className="text-2xl font-bold text-center">
-          Enter verification code
-        </CardTitle>
+        <CardTitle className="text-2xl font-bold text-center">Enter verification code</CardTitle>
       </CardHeader>
 
       <CardContent className="lg:px-6 px-0">
@@ -100,20 +86,22 @@ function OtpPage(props: React.ComponentProps<typeof Card>) {
               type="submit"
               variant="theme"
               className="w-full"
-              disabled={otpMutation.isPending}
+              disabled={verifyResetOtpMutation.isPending}
             >
-              {otpMutation.isPending && <LoaderCircle className="animate-spin mr-2 h-4 w-4" />}
-              {otpMutation.isPending ? "Verifying..." : "Verify & Continue"}
+              {verifyResetOtpMutation.isPending && (
+                <LoaderCircle className="animate-spin mr-2 h-4 w-4" />
+              )}
+              {verifyResetOtpMutation.isPending ? "Verifying..." : "Verify & Continue"}
             </Button>
 
             <div className="text-center text-sm mt-4">
-              <span className="text-[#535353]">Need help? </span>
+              <span className="text-[#535353]">Didn't receive a code? </span>
               <button
                 type="button"
                 className="text-blue-600 hover:underline font-semibold"
-                onClick={() => navigate("/auth/login")}
+                onClick={() => navigate("/auth/forgot-password")}
               >
-                Go back to login
+                Try again
               </button>
             </div>
           </FieldGroup>
@@ -123,4 +111,4 @@ function OtpPage(props: React.ComponentProps<typeof Card>) {
   )
 }
 
-export default OtpPage
+export default VerifyResetOtpPage

@@ -409,7 +409,7 @@ const TestimonialsPage = () => {
                         <AlertDialogAction
                             onClick={() => deleteMutation.mutate()}
                             disabled={deleteMutation.isPending}
-                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            className="bg-red-600 text-destructive-foreground hover:bg-red-700"
                         >
                             {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
                         </AlertDialogAction>

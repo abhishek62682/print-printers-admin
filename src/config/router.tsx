@@ -4,7 +4,10 @@ import AuthLayout from "@/layouts/AuthLayout";
 import DashboardLayout from "@/layouts/DashboardLayout";
 import AuditLogsPage from "@/pages/activity-pages/AuditLogsPage";
 import MyAuditLogsPage from "@/pages/activity-pages/MyActivityPage";
+import ForgotPasswordPage from "@/pages/auth-pages/ForgotPasswordPage";
 import LoginPage from "@/pages/auth-pages/LoginPage";
+import VerifyResetOtpPage from "@/pages/auth-pages/ResetOtpPage";
+import ResetPasswordPage from "@/pages/auth-pages/ResetPasswordPage";
 import VerifyOTP from "@/pages/auth-pages/VerifyOtpPage";
 import BlogsPage from "@/pages/dashboard-pages/blog-page/BlogPage";
 import CreateBlog from "@/pages/dashboard-pages/blog-page/CreateBlogPage";
@@ -29,6 +32,14 @@ const router = createBrowserRouter([
     children: [
       { path: "login",      element: <LoginPage /> },
       { path: "verify-otp", element: <VerifyOTP /> },
+      {
+        path:"forgot-password" , element:<ForgotPasswordPage />
+      },
+      {
+        path:"reset-password" , element:<ResetPasswordPage />
+      },{
+        path:"verify-reset-otp" , element:<VerifyResetOtpPage />
+      }
     ],
   },
   {

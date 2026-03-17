@@ -12,9 +12,9 @@ import { useAuthStore } from "@/config/store/auth";
 import { useMutation } from "@tanstack/react-query";
 import { loginUser } from "@/config/api/auth.api";
 import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
-import { LoaderCircle } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import type { AxiosError } from "axios";
+import { Eye, EyeOff,  LoaderCircle } from "lucide-react";
 
 interface LoginPayload {
   email:    string;
@@ -33,6 +33,9 @@ export function LoginForm({
     email:    "",
     password: "",
   });
+
+  const [showPassword, setShowPassword] = useState(false);
+
 
   const navigate     = useNavigate();
   const setAuthEmail = useAuthStore((store) => store.setEmail);
@@ -94,22 +97,32 @@ export function LoginForm({
         <Field>
           <div className="flex items-center">
             <FieldLabel htmlFor="password">Password</FieldLabel>
-            <a
-              href="#"
+            <Link
+              to="/auth/forgot-password"
               className="ml-auto text-sm underline-offset-4 hover:underline"
             >
               Forgot your password?
-            </a>
+            </Link>
           </div>
-          <Input
-            id="password"
-            type="password"
-            placeholder="••••••••"
-            required
-            onChange={(e) =>
-              setPayload((prev) => ({ ...prev, password: e.target.value }))
-            }
-          />
+          <div className="relative">
+  <Input
+    id="password"
+    type={showPassword ? "text" : "password"}
+    placeholder="••••••••"
+    required
+    className="pr-10"
+    onChange={(e) =>
+      setPayload((prev) => ({ ...prev, password: e.target.value }))
+    }
+  />
+  <button
+    type="button"
+    onClick={() => setShowPassword((prev) => !prev)}
+    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+  >
+    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+  </button>
+</div>
         </Field>
 
         <Field>
