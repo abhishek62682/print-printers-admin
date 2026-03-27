@@ -50,23 +50,19 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
+    Sheet,
+    SheetContent,
+} from '@/components/ui/sheet';
 import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
-import { getAllEnquiries, exportEnquiries, deleteEnquiry, updateEnquiry } from '@/config/api/enquiry.api';
-import type { Enquiry, EnquiryStatus } from '@/config/api/enquiry.api';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { getAllRequestQuotes, exportRequestQuotes, deleteRequestQuote, updateRequestQuote } from '@/config/api/enquiry.api';
+import type { RequestQuote, QuoteStatus, PaginatedRequestQuotes, ExportRequestQuotesParams } from '@/config/api/enquiry.api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AxiosError } from 'axios';
 import {
     MoreHorizontal, ChevronLeft, ChevronRight,
-    Mail, Phone, Building2, Globe, Package,
-    BookOpen, Calendar, Sparkles, FileText,
-    Megaphone, Download, Filter, X,
+    Download, Filter, X,
 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -76,45 +72,20 @@ interface ApiErrorResponse {
     message: string;
 }
 
-// ── Status config ──────────────────────────────────────────────────────────
-const STATUS_CONFIG: Record<EnquiryStatus, { label: string; className: string }> = {
-    new:       { label: 'New',       className: 'bg-blue-100 text-blue-700 border-blue-200' },
-    contacted: { label: 'Contacted', className: 'bg-yellow-100 text-yellow-700 border-yellow-200' },
-    quoted:    { label: 'Quoted',    className: 'bg-purple-100 text-purple-700 border-purple-200' },
-    converted: { label: 'Converted', className: 'bg-green-100 text-green-700 border-green-200' },
-    closed:    { label: 'Closed',    className: 'bg-gray-100 text-gray-600 border-gray-200' },
+const STATUS_CONFIG: Record<QuoteStatus, { label: string; className: string }> = {
+    new:       { label: 'New',       className: 'bg-blue-50 text-blue-700 border-blue-200' },
+    contacted: { label: 'Contacted', className: 'bg-amber-50 text-amber-700 border-amber-200' },
+    quoted:    { label: 'Quoted',    className: 'bg-purple-50 text-purple-700 border-purple-200' },
+    converted: { label: 'Converted', className: 'bg-green-50 text-green-700 border-green-200' },
+    closed:    { label: 'Closed',    className: 'bg-slate-100 text-slate-600 border-slate-200' },
 };
 
-const StatusBadge = ({ status }: { status: EnquiryStatus }) => {
+const StatusBadge = ({ status }: { status: QuoteStatus }) => {
     const config = STATUS_CONFIG[status] ?? STATUS_CONFIG.new;
     return (
-        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${config.className}`}>
+        <span className={`inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-medium ${config.className}`}>
             {config.label}
         </span>
-    );
-};
-
-// ── Detail row helper ──────────────────────────────────────────────────────
-const DetailRow = ({
-    icon: Icon,
-    label,
-    value,
-}: {
-    icon: React.ElementType;
-    label: string;
-    value?: string | null;
-}) => {
-    if (!value) return null;
-    return (
-        <div className="flex items-start gap-3">
-            <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted">
-                <Icon className="h-3.5 w-3.5 text-muted-foreground" />
-            </div>
-            <div>
-                <p className="text-xs text-muted-foreground">{label}</p>
-                <p className="text-sm font-medium">{value}</p>
-            </div>
-        </div>
     );
 };
 
@@ -131,13 +102,32 @@ const formatDate = (dateStr?: string | null) => {
     }
 };
 
+/* ─── Drawer field row ─────────────────────────────────────────────────────── */
+const Field = ({ label, value }: { label: string; value?: string | number | null }) => {
+    if (!value && value !== 0) return null;
+    return (
+        <div className="space-y-0.5">
+            <p className="text-[11px] text-slate-400">{label}</p>
+            <p className="text-sm text-slate-700">{value}</p>
+        </div>
+    );
+};
+
+/* ─── Drawer section heading ───────────────────────────────────────────────── */
+const DrawerSection = ({ title }: { title: string }) => (
+    <div className="pt-2 pb-1">
+        <p className="text-xs text-slate-400">{title}</p>
+        <Separator className="mt-1.5" />
+    </div>
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
-const EnquiriesPage = () => {
+const RequestQuotesPage = () => {
     const queryClient = useQueryClient();
 
     const [page, setPage]   = useState(1);
     const [limit, setLimit] = useState(10);
-    const [statusFilter, setStatusFilter] = useState<EnquiryStatus | 'all'>('all');
+    const [statusFilter, setStatusFilter] = useState<QuoteStatus | 'all'>('all');
 
     const [startDate, setStartDate]               = useState('');
     const [endDate, setEndDate]                   = useState('');
@@ -148,86 +138,63 @@ const EnquiriesPage = () => {
     const [deleteId, setDeleteId]     = useState<string | null>(null);
     const [dialogOpen, setDialogOpen] = useState(false);
 
-    const [viewEnquiry, setViewEnquiry] = useState<Enquiry | null>(null);
-    const [viewOpen, setViewOpen]       = useState(false);
+    const [viewQuote, setViewQuote]   = useState<RequestQuote | null>(null);
+    const [drawerOpen, setDrawerOpen] = useState(false);
 
     const queryParams = {
-        page,
-        limit,
+        page, limit,
         ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
         ...(appliedStartDate ? { startDate: appliedStartDate } : {}),
         ...(appliedEndDate   ? { endDate:   appliedEndDate   } : {}),
     };
 
-    const { data, isLoading, isError } = useQuery({
-        queryKey: ['enquiries', queryParams],
-        queryFn: () => getAllEnquiries(queryParams),
+    const { data, isLoading, isError } = useQuery<PaginatedRequestQuotes>({
+        queryKey: ['requestQuotes', queryParams],
+        queryFn:  () => getAllRequestQuotes(queryParams),
         staleTime: 10000,
     });
 
-    const enquiries  = data?.data      ?? [];
+    const quotes     = data?.data      ?? [];
     const pagination = data?.pagination;
 
     // ── Mutations ──────────────────────────────────────────────────────────
     const deleteMutation = useMutation({
-        mutationFn: () => deleteEnquiry(deleteId!),
+        mutationFn: () => deleteRequestQuote(deleteId!),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['enquiries'] });
+            queryClient.invalidateQueries({ queryKey: ['requestQuotes'] });
             setDialogOpen(false);
             setDeleteId(null);
-            toast.success('Enquiry deleted', {
-                description: 'The enquiry has been permanently removed.',
-            });
+            setDrawerOpen(false);
+            toast.success('Quote deleted', { description: 'The quote request has been permanently removed.' });
         },
         onError: (error: AxiosError<ApiErrorResponse>) => {
-            const message = error.response?.data?.message ?? 'Something went wrong. Please try again.';
-            toast.error('Failed to delete enquiry', { description: message });
+            toast.error('Failed to delete quote', { description: error.response?.data?.message ?? 'Something went wrong.' });
         },
     });
 
     const statusMutation = useMutation({
-        mutationFn: ({ id, status }: { id: string; status: EnquiryStatus }) =>
-            updateEnquiry(id, { status }),
+        mutationFn: ({ id, status }: { id: string; status: QuoteStatus }) => updateRequestQuote(id, { status }),
         onSuccess: (_, { status }) => {
-            queryClient.invalidateQueries({ queryKey: ['enquiries'] });
-            queryClient.invalidateQueries({queryKey:['stats']})
-            if (viewEnquiry) setViewEnquiry((prev) => prev ? { ...prev, status } : prev);
-            toast.success('Status updated', {
-                description: `Enquiry marked as ${STATUS_CONFIG[status]?.label ?? status}.`,
-            });
+            queryClient.invalidateQueries({ queryKey: ['requestQuotes'] });
+            queryClient.invalidateQueries({ queryKey: ['stats'] });
+            if (viewQuote) setViewQuote((prev) => prev ? { ...prev, status } : prev);
+            toast.success('Status updated', { description: `Marked as ${STATUS_CONFIG[status]?.label ?? status}.` });
         },
         onError: (error: AxiosError<ApiErrorResponse>) => {
-            const message = error.response?.data?.message ?? 'Something went wrong. Please try again.';
-            toast.error('Failed to update status', { description: message });
+            toast.error('Failed to update status', { description: error.response?.data?.message ?? 'Something went wrong.' });
         },
     });
 
     // ── Handlers ───────────────────────────────────────────────────────────
-    const handleDeleteClick = (id: string) => {
-        setDeleteId(id);
-        setTimeout(() => setDialogOpen(true), 100);
-    };
+    const handleDeleteClick = (id: string) => { setDeleteId(id); setTimeout(() => setDialogOpen(true), 100); };
+    const handleViewClick   = (quote: RequestQuote) => { setViewQuote(quote); setDrawerOpen(true); };
 
-    const handleViewClick = (enquiry: Enquiry) => {
-        setViewEnquiry(enquiry);
-        setViewOpen(true);
-    };
-
-    const handleStatusFilterChange = (val: string) => {
-        setStatusFilter(val as EnquiryStatus | 'all');
-        setPage(1);
-    };
-
-    const handleLimitChange = (val: string) => {
-        setLimit(Number(val));
-        setPage(1);
-    };
+    const handleStatusFilterChange = (val: string) => { setStatusFilter(val as QuoteStatus | 'all'); setPage(1); };
+    const handleLimitChange        = (val: string) => { setLimit(Number(val)); setPage(1); };
 
     const handleApplyFilter = () => {
         if (startDate && endDate && startDate > endDate) {
-            toast.error('Invalid date range', {
-                description: 'Start date must not be after end date.',
-            });
+            toast.error('Invalid date range', { description: 'Start date must not be after end date.' });
             return;
         }
         setAppliedStartDate(startDate);
@@ -236,77 +203,83 @@ const EnquiriesPage = () => {
     };
 
     const handleClearFilter = () => {
-        setStartDate('');
-        setEndDate('');
-        setAppliedStartDate('');
-        setAppliedEndDate('');
+        setStartDate(''); setEndDate('');
+        setAppliedStartDate(''); setAppliedEndDate('');
         setPage(1);
     };
 
     const isFilterApplied = Boolean(appliedStartDate || appliedEndDate);
 
+    // ── Download individual quote ──────────────────────────────────────────
+    const handleDownloadQuote = (quote: RequestQuote) => {
+        try {
+            const sheetData = [{
+                'Full Name': quote?.fullName ?? '', 'Company Name': quote?.companyName ?? '',
+                'Email': quote?.email ?? '', 'Phone': quote?.phone ?? '',
+                'Country': quote?.country ?? '', 'State/Province': quote?.stateProvince ?? '',
+                'City': quote?.city ?? '', 'Zip Code': quote?.zipCode ?? '',
+                'Book Title': quote?.bookTitle ?? '', 'Book Category': quote?.bookCategory ?? '',
+                'Trim Size': quote?.trimSize ?? '', 'Orientation': quote?.orientation ?? '',
+                'Proof Type': quote?.proofType ?? '', 'Binding Type': quote?.bindingType ?? '',
+                'Cover Stock': quote?.coverStock ?? '', 'Cover Ink': quote?.coverInk ?? '',
+                'Total Pages': quote?.totalPages ?? '', 'Text Paper Stock': quote?.textPaperStock ?? '',
+                'Text Ink': quote?.textInk ?? '', 'Quantities': quote?.quantities?.join(', ') ?? '',
+                'Packing Method': quote?.packingMethod ?? '', 'Shipping Method': quote?.shippingMethod ?? '',
+                'Delivery Address': quote?.deliveryAddress ?? '', 'Delivery City': quote?.deliveryCity ?? '',
+                'Delivery Country': quote?.deliveryCountry ?? '',
+                'Status': STATUS_CONFIG[quote?.status as QuoteStatus]?.label ?? quote?.status ?? '',
+                'Special Instructions': quote?.specialInstructions ?? '',
+                'Received On': quote?.createdAt ? formatDate(quote.createdAt) : '',
+            }];
+            const ws = XLSX.utils.json_to_sheet(sheetData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Quote Request');
+            ws['!cols'] = Object.keys(sheetData[0]).map((k) => ({ wch: Math.max(k.length, ...sheetData.map((r) => String(r[k as keyof typeof r] ?? '').length)) + 2 }));
+            XLSX.writeFile(wb, `quote-${quote?.fullName?.replace(/\s+/g, '-')}-${quote?.bookTitle?.replace(/\s+/g, '-')}.xlsx`);
+            toast.success('Downloaded successfully', { description: `Quote for ${quote?.fullName} downloaded.` });
+        } catch {
+            toast.error('Download failed', { description: 'Something went wrong. Please try again.' });
+        }
+    };
+
     // ── Export Excel ───────────────────────────────────────────────────────
     const handleExportExcel = async () => {
         setIsExporting(true);
         try {
-            const rows = await exportEnquiries({
+            const exportParams: ExportRequestQuotesParams = {
                 ...(statusFilter !== 'all' ? { status: statusFilter } : {}),
                 ...(appliedStartDate ? { startDate: appliedStartDate } : {}),
                 ...(appliedEndDate   ? { endDate:   appliedEndDate   } : {}),
-            });
+            };
+            const rows = await exportRequestQuotes(exportParams);
 
-            if (!rows?.length) {
-                toast.warning('No data to export', {
-                    description: 'No enquiries found for the selected filters.',
-                });
-                return;
-            }
+            if (!rows?.length) { toast.warning('No data to export', { description: 'No quote requests found for the selected filters.' }); return; }
 
-            const sheetData = rows.map((e) => ({
-                'Full Name':           e?.fullName             ?? '',
-                'Company Name':        e?.companyName          ?? '',
-                'Email':               e?.email                ?? '',
-                'Phone Number':        e?.phoneNumber          ?? '',
-                'Country':             e?.country              ?? '',
-                'Product Type':        e?.productType          ?? '',
-                'Binding Type':        e?.bindingType          ?? '',
-                'Approx. Quantity':    e?.approximateQuantity  ?? '',
-                'Specialty Finishing': e?.specialtyFinishing   ?? '',
-                'Required Delivery':   e?.requiredDeliveryDate ?? '',
-                'Project Description': e?.projectDescription   ?? '',
-                'How Did You Hear':    e?.howDidYouHear        ?? '',
-                'Status':              STATUS_CONFIG[e?.status as EnquiryStatus]?.label ?? e?.status ?? '',
-                'Received On':         e?.createdAt
-                    ? new Date(e.createdAt).toLocaleDateString('en-US', {
-                        year: 'numeric', month: 'short', day: 'numeric',
-                    })
-                    : '',
+            const sheetData = rows.map((q: RequestQuote) => ({
+                'Full Name': q?.fullName ?? '', 'Company Name': q?.companyName ?? '',
+                'Email': q?.email ?? '', 'Phone': q?.phone ?? '',
+                'Country': q?.country ?? '', 'State/Province': q?.stateProvince ?? '',
+                'City': q?.city ?? '', 'Zip Code': q?.zipCode ?? '',
+                'Book Title': q?.bookTitle ?? '', 'Book Category': q?.bookCategory ?? '',
+                'Trim Size': q?.trimSize ?? '', 'Orientation': q?.orientation ?? '',
+                'Proof Type': q?.proofType ?? '', 'Binding Type': q?.bindingType ?? '',
+                'Cover Stock': q?.coverStock ?? '', 'Cover Ink': q?.coverInk ?? '',
+                'Total Pages': q?.totalPages ?? '', 'Text Paper Stock': q?.textPaperStock ?? '',
+                'Text Ink': q?.textInk ?? '', 'Quantities': q?.quantities?.join(', ') ?? '',
+                'Packing Method': q?.packingMethod ?? '', 'Shipping Method': q?.shippingMethod ?? '',
+                'Delivery Address': q?.deliveryAddress ?? '', 'Delivery City': q?.deliveryCity ?? '',
+                'Delivery Country': q?.deliveryCountry ?? '',
+                'Status': STATUS_CONFIG[q?.status as QuoteStatus]?.label ?? q?.status ?? '',
+                'Received On': q?.createdAt ? formatDate(q.createdAt) : '',
             }));
-
-            const worksheet = XLSX.utils.json_to_sheet(sheetData);
-            const workbook  = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, 'Enquiries');
-
-            const colWidths = Object.keys(sheetData[0]).map((key) => ({
-                wch: Math.max(
-                    key.length,
-                    ...sheetData.map((row) => String(row[key as keyof typeof row] ?? '').length)
-                ) + 2,
-            }));
-            worksheet['!cols'] = colWidths;
-
-            const from     = appliedStartDate || 'all';
-            const to       = appliedEndDate   || 'all';
-            const filename = `enquiries-${from}-to-${to}.xlsx`;
-
-            XLSX.writeFile(workbook, filename);
-            toast.success('Export successful', {
-                description: `${rows.length} enquir${rows.length !== 1 ? 'ies' : 'y'} exported to Excel.`,
-            });
+            const ws = XLSX.utils.json_to_sheet(sheetData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Quote Requests');
+            ws['!cols'] = Object.keys(sheetData[0]).map((k) => ({ wch: Math.max(k.length, ...sheetData.map((r) => String(r[k as keyof typeof r] ?? '').length)) + 2 }));
+            XLSX.writeFile(wb, `quote-requests-${appliedStartDate || 'all'}-to-${appliedEndDate || 'all'}.xlsx`);
+            toast.success('Export successful', { description: `${rows.length} quote request${rows.length !== 1 ? 's' : ''} exported.` });
         } catch {
-            toast.error('Export failed', {
-                description: 'Something went wrong while exporting. Please try again.',
-            });
+            toast.error('Export failed', { description: 'Something went wrong while exporting.' });
         } finally {
             setIsExporting(false);
         }
@@ -318,226 +291,208 @@ const EnquiriesPage = () => {
             <div className="flex items-center justify-between">
                 <Breadcrumb>
                     <BreadcrumbList>
-                        <BreadcrumbItem>
-                            <BreadcrumbLink href="/dashboard/home">Home</BreadcrumbLink>
-                        </BreadcrumbItem>
+                        <BreadcrumbItem><BreadcrumbLink href="/dashboard/home">Home</BreadcrumbLink></BreadcrumbItem>
                         <BreadcrumbSeparator />
-                        <BreadcrumbItem>
-                            <BreadcrumbPage>Enquiries</BreadcrumbPage>
-                        </BreadcrumbItem>
+                        <BreadcrumbItem><BreadcrumbPage>Quote Requests</BreadcrumbPage></BreadcrumbItem>
                     </BreadcrumbList>
                 </Breadcrumb>
             </div>
 
-            <Card className="mt-6">
+            <Card className="mt-6 border-slate-200">
                 <CardHeader className="space-y-0 pb-0">
                     <div className="flex items-center justify-between pb-4">
                         <div>
-                            <CardTitle>Contact Enquiries</CardTitle>
+                            <CardTitle className="text-xl font-bold">Quote Requests</CardTitle>
                             <CardDescription className="mt-0.5">
-                                All enquiries submitted through the contact form.
+                                All quote requests submitted for book printing services. ({pagination?.total ?? 0} total)
                             </CardDescription>
                         </div>
                     </div>
 
                     <div className="flex flex-wrap items-end gap-3 pt-3 pb-2">
                         <div className="flex flex-col gap-1">
-                            <Label className="text-xs text-muted-foreground">Start Date</Label>
-                            <Input
-                                type="date"
-                                value={startDate}
-                                max={endDate || undefined}
-                                onChange={(e) => setStartDate(e?.target?.value ?? '')}
-                                className="h-9 w-[148px] text-sm"
-                            />
+                            <Label className="text-xs text-slate-600 font-semibold">Start Date</Label>
+                            <Input type="date" value={startDate} max={endDate || undefined} onChange={(e) => setStartDate(e.target.value)} className="h-9 w-[148px] text-sm" />
                         </div>
                         <div className="flex flex-col gap-1">
-                            <Label className="text-xs text-muted-foreground">End Date</Label>
-                            <Input
-                                type="date"
-                                value={endDate}
-                                min={startDate || undefined}
-                                onChange={(e) => setEndDate(e?.target?.value ?? '')}
-                                className="h-9 w-[148px] text-sm"
-                            />
+                            <Label className="text-xs text-slate-600 font-semibold">End Date</Label>
+                            <Input type="date" value={endDate} min={startDate || undefined} onChange={(e) => setEndDate(e.target.value)} className="h-9 w-[148px] text-sm" />
                         </div>
-                        <Button variant="outline" size="sm" className="h-9" onClick={handleApplyFilter} disabled={isLoading}>
-                            <Filter className="h-3.5 w-3.5 mr-1.5" />
-                            Apply
+                        <Button variant="outline" size="sm" className="h-9 font-semibold" onClick={handleApplyFilter} disabled={isLoading}>
+                            <Filter className="h-3.5 w-3.5 mr-1.5" /> Apply
                         </Button>
                         {isFilterApplied && (
-                            <Button variant="ghost" size="sm" className="h-9 text-muted-foreground" onClick={handleClearFilter}>
-                                <X className="h-3.5 w-3.5 mr-1.5" />
-                                Clear
+                            <Button variant="ghost" size="sm" className="h-9 text-slate-600" onClick={handleClearFilter}>
+                                <X className="h-3.5 w-3.5 mr-1.5" /> Clear
                             </Button>
                         )}
                         <div className="flex-1" />
                         <div className="flex flex-col gap-1">
-                            <Label className="text-xs text-muted-foreground">Status</Label>
+                            <Label className="text-xs text-slate-600 font-semibold">Status</Label>
                             <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
-                                <SelectTrigger className="h-9 w-[130px]">
-                                    <SelectValue placeholder="All" />
-                                </SelectTrigger>
+                                <SelectTrigger className="h-9 w-[130px]"><SelectValue placeholder="All" /></SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="all">All</SelectItem>
-                                    {(Object.keys(STATUS_CONFIG) as EnquiryStatus[]).map((s) => (
+                                    {(Object.keys(STATUS_CONFIG) as QuoteStatus[]).map((s) => (
                                         <SelectItem key={s} value={s}>{STATUS_CONFIG[s].label}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
                         </div>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-9"
-                            onClick={handleExportExcel}
-                            disabled={isExporting || isLoading}
-                        >
+                        <Button variant="default" size="sm" className="h-9 font-semibold" onClick={handleExportExcel} disabled={isExporting || isLoading}>
                             <Download className="h-3.5 w-3.5 mr-1.5" />
-                            {isExporting ? 'Exporting...' : 'Export Excel'}
+                            {isExporting ? 'Exporting...' : 'Export'}
                         </Button>
                     </div>
 
                     {isFilterApplied && (
-                        <p className="text-xs text-muted-foreground pb-2">
-                            Showing: <strong>{appliedStartDate || '—'}</strong>{' → '}<strong>{appliedEndDate || '—'}</strong>
+                        <p className="text-xs text-slate-600 pb-2 font-medium">
+                            Showing: <strong>{appliedStartDate || '—'}</strong> → <strong>{appliedEndDate || '—'}</strong>
                         </p>
                     )}
                 </CardHeader>
 
-                <CardContent>
-                    {isLoading && (
-                        <div className="py-16 text-center text-sm text-muted-foreground">Loading enquiries...</div>
-                    )}
-                    {isError && (
-                        <div className="py-16 text-center text-sm text-destructive">Failed to load enquiries. Please try again.</div>
-                    )}
+                <CardContent className="pt-6">
+                    {isLoading && <div className="py-16 text-center text-sm text-slate-500">Loading quote requests...</div>}
+                    {isError  && <div className="py-16 text-center text-sm text-red-600">Failed to load quote requests. Please try again.</div>}
                     {!isLoading && !isError && (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="text-xs">Name</TableHead>
-                                    <TableHead className="text-xs">Company</TableHead>
-                                    <TableHead className="text-xs">Email</TableHead>
-                                    <TableHead className="hidden text-xs lg:table-cell">Phone</TableHead>
-                                    <TableHead className="hidden text-xs md:table-cell">Product Type</TableHead>
-                                    <TableHead className="text-xs">Status</TableHead>
-                                    <TableHead className="hidden text-xs md:table-cell">Received</TableHead>
-                                    <TableHead className="text-xs">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {enquiries.map((enquiry: Enquiry) => (
-                                    <TableRow key={enquiry?._id}>
-                                        <TableCell className="font-medium max-w-[140px]">
-                                            <p className="truncate">{enquiry?.fullName ?? '—'}</p>
-                                        </TableCell>
-                                        <TableCell className="text-sm text-muted-foreground max-w-[140px]">
-                                            <p className="truncate">{enquiry?.companyName ?? '—'}</p>
-                                        </TableCell>
-                                        <TableCell className="text-sm max-w-[180px]">
-                                            <p className="truncate">{enquiry?.email ?? '—'}</p>
-                                        </TableCell>
-                                        <TableCell className="hidden lg:table-cell text-sm text-muted-foreground max-w-[140px]">
-                                            <p className="truncate">{enquiry?.phoneNumber ?? '—'}</p>
-                                        </TableCell>
-                                        <TableCell className="hidden md:table-cell">
-                                            <Badge variant="outline" className="text-xs">
-                                                {enquiry?.productType ?? '—'}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Select
-                                                value={enquiry?.status ?? 'new'}
-                                                disabled={statusMutation.isPending}
-                                                onValueChange={(val) =>
-                                                    statusMutation.mutate({ id: enquiry?._id, status: val as EnquiryStatus })
-                                                }
-                                            >
-                                                <SelectTrigger className="h-7 w-[120px] text-xs px-2 border-0 shadow-none focus:ring-0">
-                                                    <SelectValue>
-                                                        <StatusBadge status={enquiry?.status ?? 'new'} />
-                                                    </SelectValue>
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {(Object.keys(STATUS_CONFIG) as EnquiryStatus[]).map((s) => (
-                                                        <SelectItem key={s} value={s} className="text-xs">
-                                                            <span className="flex items-center gap-2">
-                                                                <span className={`h-2 w-2 rounded-full shrink-0 border ${STATUS_CONFIG[s].className}`} />
-                                                                {STATUS_CONFIG[s].label}
-                                                            </span>
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </TableCell>
-                                        <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
-                                            {formatDate(enquiry?.createdAt)}
-                                        </TableCell>
-                                        <TableCell>
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button aria-haspopup="true" size="icon" variant="ghost">
-                                                        <MoreHorizontal className="h-4 w-4" />
-                                                        <span className="sr-only">Toggle menu</span>
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                                    <DropdownMenuItem onClick={() => handleViewClick(enquiry)}>
-                                                        View Details
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuSeparator />
-                                                    <DropdownMenuItem
-                                                        className="text-destructive focus:text-destructive"
-                                                        onSelect={(e) => {
-                                                            e.preventDefault();
-                                                            handleDeleteClick(enquiry?._id);
-                                                        }}
-                                                    >
-                                                        Delete
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        </TableCell>
+                        <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow className="bg-slate-50 hover:bg-slate-50">
+                                        <TableHead className="text-xs font-semibold text-slate-600">Name / Company</TableHead>
+                                        <TableHead className="text-xs font-semibold text-slate-600">Email & Phone</TableHead>
+                                        <TableHead className="text-xs font-semibold text-slate-600">Book</TableHead>
+                                        <TableHead className="text-xs font-semibold text-slate-600">Binding</TableHead>
+                                        <TableHead className="text-xs font-semibold text-slate-600">Qty / Shipping</TableHead>
+                                        <TableHead className="text-xs font-semibold text-slate-600">Delivery</TableHead>
+                                        <TableHead className="text-xs font-semibold text-slate-600">Status</TableHead>
+                                        <TableHead className="text-xs font-semibold text-slate-600">Date</TableHead>
+                                        <TableHead className="text-xs font-semibold text-slate-600 text-right">Actions</TableHead>
                                     </TableRow>
-                                ))}
-                                {enquiries.length === 0 && (
-                                    <TableRow>
-                                        <TableCell colSpan={8} className="py-16 text-center text-sm text-muted-foreground">
-                                            {statusFilter !== 'all'
-                                                ? `No ${STATUS_CONFIG[statusFilter as EnquiryStatus]?.label} enquiries found.`
-                                                : isFilterApplied
-                                                    ? 'No enquiries found for the selected date range.'
-                                                    : 'No enquiries found.'}
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
+                                </TableHeader>
+                                <TableBody>
+                                    {quotes.map((quote: RequestQuote) => (
+                                    <TableRow
+                                            key={quote?._id}
+                                            onDoubleClick={() => handleViewClick(quote)}
+                                            className="group hover:bg-slate-50 transition-colors border-b border-slate-100 cursor-pointer"
+                                        >
+                                            {/* Name / Company */}
+                                            <TableCell className="py-3.5">
+                                                <div className="flex flex-col gap-0.5">
+                                                    <p className="text-sm text-slate-700">{quote?.fullName ?? '—'}</p>
+                                                    <p className="text-xs text-slate-400">{quote?.companyName ?? '—'}</p>
+                                                </div>
+                                            </TableCell>
+                                            {/* Email / Phone */}
+                                            <TableCell className="py-3.5">
+                                                <div className="flex flex-col gap-0.5">
+                                                    <p className="text-sm text-slate-700">{quote?.email ?? '—'}</p>
+                                                    <p className="text-xs text-slate-400">{quote?.phone ?? '—'}</p>
+                                                </div>
+                                            </TableCell>
+                                            {/* Book */}
+                                            <TableCell className="py-3.5">
+                                                <div className="flex flex-col gap-0.5">
+                                                    <p className="text-sm text-slate-700">{quote?.bookTitle ?? '—'}</p>
+                                                    <p className="text-xs text-slate-400">{quote?.bookCategory ?? '—'}</p>
+                                                </div>
+                                            </TableCell>
+                                            {/* Binding / Pages */}
+                                            <TableCell className="py-3.5">
+                                                <div className="flex flex-col gap-0.5">
+                                                    <p className="text-sm text-slate-700">{quote?.bindingType ?? '—'}</p>
+                                                    <p className="text-xs text-slate-400">{quote?.totalPages ? `${quote.totalPages} pages` : '—'}</p>
+                                                </div>
+                                            </TableCell>
+                                            {/* Quantities / Shipping */}
+                                            <TableCell className="py-3.5">
+                                                <div className="flex flex-col gap-0.5">
+                                                    <p className="text-sm text-slate-700">{quote?.quantities?.join(', ') ?? '—'}</p>
+                                                    <p className="text-xs text-slate-400">{quote?.shippingMethod ?? '—'}</p>
+                                                </div>
+                                            </TableCell>
+                                            {/* Delivery */}
+                                            <TableCell className="py-3.5">
+                                                <div className="flex flex-col gap-0.5">
+                                                    <p className="text-sm text-slate-700">{quote?.deliveryCountry ?? '—'}</p>
+                                                    <p className="text-xs text-slate-400">{quote?.deliveryCity ?? '—'}</p>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="py-3.5" onClick={(e) => e.stopPropagation()}>
+                                                <Select
+                                                    value={quote?.status ?? 'new'}
+                                                    disabled={statusMutation.isPending}
+                                                    onValueChange={(val) => statusMutation.mutate({ id: quote?._id, status: val as QuoteStatus })}
+                                                >
+                                                    <SelectTrigger className="h-auto w-fit border-0 shadow-none focus:ring-0 bg-transparent p-0">
+                                                        <SelectValue><StatusBadge status={quote?.status ?? 'new'} /></SelectValue>
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {(Object.keys(STATUS_CONFIG) as QuoteStatus[]).map((s) => (
+                                                            <SelectItem key={s} value={s} className="text-xs">{STATUS_CONFIG[s].label}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </TableCell>
+                                            <TableCell className="py-3.5 text-sm text-slate-600 whitespace-nowrap">
+                                                {formatDate(quote?.createdAt)}
+                                            </TableCell>
+                                            <TableCell className="py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-slate-100">
+                                                            <MoreHorizontal className="h-4 w-4" />
+                                                            <span className="sr-only">More</span>
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end" className="w-44">
+                                                        <DropdownMenuLabel className="font-semibold text-slate-900 text-xs">Actions</DropdownMenuLabel>
+                                                        <DropdownMenuSeparator />
+                                                        <DropdownMenuItem onClick={() => handleDownloadQuote(quote)} className="cursor-pointer text-sm">
+                                                            <Download className="h-4 w-4 mr-2" /> Download Excel
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuSeparator />
+                                                        <DropdownMenuItem
+                                                            className="text-red-600 cursor-pointer text-sm"
+                                                            onSelect={(e) => { e.preventDefault(); handleDeleteClick(quote?._id); }}
+                                                        >
+                                                            Delete
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                    {quotes.length === 0 && (
+                                        <TableRow>
+                                            <TableCell colSpan={9} className="py-16 text-center text-sm text-slate-400">
+                                                {statusFilter !== 'all'
+                                                    ? `No ${STATUS_CONFIG[statusFilter as QuoteStatus]?.label} quote requests found.`
+                                                    : isFilterApplied
+                                                        ? 'No quote requests found for the selected date range.'
+                                                        : 'No quote requests found.'}
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
                     )}
                 </CardContent>
 
-                <CardFooter className="flex items-center justify-between">
-                    <div className="text-xs text-muted-foreground">
+                <CardFooter className="flex items-center justify-between border-t bg-white">
+                    <div className="text-xs text-slate-600 font-medium">
                         {pagination && (pagination?.total ?? 0) > 0 ? (
-                            <>
-                                Showing{' '}
-                                <strong>{(page - 1) * limit + 1}–{Math.min(page * limit, pagination?.total ?? 0)}</strong>
-                                {' '}of <strong>{pagination?.total ?? 0}</strong>{' '}
-                                enquir{(pagination?.total ?? 0) !== 1 ? 'ies' : 'y'}
-                            </>
-                        ) : (
-                            <>Showing <strong>0</strong> enquiries</>
-                        )}
+                            <>Showing <strong>{(page - 1) * limit + 1}–{Math.min(page * limit, pagination?.total ?? 0)}</strong> of <strong>{pagination?.total ?? 0}</strong> requests</>
+                        ) : <>Showing <strong>0</strong> requests</>}
                     </div>
                     <div className="flex items-center gap-4">
                         <div className="flex items-center gap-2">
-                            <span className="text-xs text-muted-foreground whitespace-nowrap">Rows per page</span>
+                            <span className="text-xs text-slate-600 whitespace-nowrap font-medium">Rows per page</span>
                             <Select value={String(limit)} onValueChange={handleLimitChange}>
-                                <SelectTrigger className="w-[70px] h-8 text-xs">
-                                    <SelectValue />
-                                </SelectTrigger>
+                                <SelectTrigger className="w-[70px] h-8 text-xs"><SelectValue /></SelectTrigger>
                                 <SelectContent>
                                     {PAGE_SIZE_OPTIONS.map((size) => (
                                         <SelectItem key={size} value={String(size)} className="text-xs">{size}</SelectItem>
@@ -550,7 +505,7 @@ const EnquiriesPage = () => {
                                 <Button variant="outline" size="sm" onClick={() => setPage((p) => p - 1)} disabled={!pagination?.hasPrevPage || isLoading}>
                                     <ChevronLeft className="h-4 w-4" /> Prev
                                 </Button>
-                                <span className="text-xs text-muted-foreground">
+                                <span className="text-xs text-slate-600 font-medium">
                                     Page {pagination?.page ?? 1} of {pagination?.totalPages ?? 1}
                                 </span>
                                 <Button variant="outline" size="sm" onClick={() => setPage((p) => p + 1)} disabled={!pagination?.hasNextPage || isLoading}>
@@ -562,71 +517,185 @@ const EnquiriesPage = () => {
                 </CardFooter>
             </Card>
 
-            {/* ── View Details Dialog ──────────────────────────────────────── */}
-            <Dialog open={viewOpen} onOpenChange={setViewOpen}>
-                <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-                    <DialogHeader>
-                        <div className="flex items-center justify-between pr-6">
-                            <DialogTitle>Enquiry Details</DialogTitle>
-                            {viewEnquiry && <StatusBadge status={viewEnquiry?.status ?? 'new'} />}
-                        </div>
-                    </DialogHeader>
-                    {viewEnquiry && (
-                        <div className="space-y-5 pt-1">
-                            <div>
-                                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Contact Info</p>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <DetailRow icon={Mail}      label="Full Name" value={viewEnquiry?.fullName} />
-                                    <DetailRow icon={Building2} label="Company"   value={viewEnquiry?.companyName} />
-                                    <DetailRow icon={Mail}      label="Email"     value={viewEnquiry?.email} />
-                                    <DetailRow icon={Phone}     label="Phone"     value={viewEnquiry?.phoneNumber} />
-                                    <DetailRow icon={Globe}     label="Country"   value={viewEnquiry?.country} />
-                                    {viewEnquiry?.howDidYouHear && (
-                                        <DetailRow icon={Megaphone} label="How Did You Hear" value={viewEnquiry?.howDidYouHear} />
-                                    )}
-                                </div>
+            {/* ══════════════════════════════════════════════════════════════
+                 DETAILS DRAWER
+                 ══════════════════════════════════════════════════════════════ */}
+            <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
+                <SheetContent
+                    side="right"
+                    className="w-full sm:max-w-2xl p-0 flex flex-col gap-0 overflow-hidden"
+                >
+                    {viewQuote && (
+                        <>
+                            {/* ─── Drawer Header ─── */}
+                            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
+                                <StatusBadge status={viewQuote.status ?? 'new'} />
+                                <p className="text-xs text-slate-400 whitespace-nowrap pr-8">
+                                    {formatDate(viewQuote.createdAt)}
+                                </p>
                             </div>
-                            <Separator />
-                            <div>
-                                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Project Info</p>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <DetailRow icon={Package}  label="Product Type" value={viewEnquiry?.productType} />
-                                    <DetailRow icon={BookOpen} label="Binding Type" value={viewEnquiry?.bindingType} />
-                                    <DetailRow icon={FileText} label="Approx. Qty"  value={viewEnquiry?.approximateQuantity} />
-                                    {viewEnquiry?.requiredDeliveryDate && (
-                                        <DetailRow icon={Calendar} label="Delivery Date" value={viewEnquiry?.requiredDeliveryDate} />
-                                    )}
-                                    <div className="col-span-2">
-                                        <DetailRow icon={Sparkles} label="Specialty Finishing" value={viewEnquiry?.specialtyFinishing} />
+
+                            {/* ─── Drawer Body ─── */}
+                            <ScrollArea className="flex-1 min-h-0">
+                                <div className="px-6 py-5 space-y-6">
+
+                                    {/* Contact */}
+                                    <div>
+                                        <DrawerSection title="Contact" />
+                                        <div className="grid grid-cols-2 gap-x-8 gap-y-4 mt-3">
+                                            <Field label="Name"             value={viewQuote.fullName} />
+                                            <Field label="Company"          value={viewQuote.companyName} />
+                                            <Field label="Email"            value={viewQuote.email} />
+                                            <Field label="Phone"            value={viewQuote.phone} />
+                                            <Field label="Country"          value={viewQuote.country} />
+                                            <Field label="State / Province" value={viewQuote.stateProvince} />
+                                            <Field label="City"             value={viewQuote.city} />
+                                            <Field label="Zip Code"         value={viewQuote.zipCode} />
+                                        </div>
+                                        {viewQuote.howDidYouHear && (
+                                            <div className="mt-4">
+                                                <Field label="How Did You Hear About Us?" value={viewQuote.howDidYouHear} />
+                                            </div>
+                                        )}
                                     </div>
-                                    {viewEnquiry?.projectDescription && (
-                                        <div className="col-span-2">
-                                            <DetailRow icon={FileText} label="Project Description" value={viewEnquiry?.projectDescription} />
+
+                                    {/* Book Information */}
+                                    <div>
+                                        <DrawerSection title="Book Information" />
+                                        <div className="grid grid-cols-2 gap-x-8 gap-y-4 mt-3">
+                                            <div className="col-span-2 space-y-0.5">
+                                                <p className="text-[11px] text-slate-400">Book Title</p>
+                                                <p className="text-sm text-slate-700">{viewQuote.bookTitle}</p>
+                                                {viewQuote.bookCategory && (
+                                                    <p className="text-xs text-slate-400">{viewQuote.bookCategory}</p>
+                                                )}
+                                            </div>
+                                            <Field label="Trim Size"   value={viewQuote.trimSize} />
+                                            <Field label="Orientation" value={viewQuote.orientation} />
+                                            <Field label="Total Pages" value={viewQuote.totalPages ? `${viewQuote.totalPages} pages` : null} />
+                                            <Field label="Proof Type"  value={viewQuote.proofType} />
+                                        </div>
+                                    </div>
+
+                                    {/* Binding & Cover */}
+                                    <div>
+                                        <DrawerSection title="Binding & Cover" />
+                                        <div className="grid grid-cols-2 gap-x-8 gap-y-4 mt-3">
+                                            <Field label="Binding Type"      value={viewQuote.bindingType} />
+                                            <Field label="Cover Stock"        value={viewQuote.coverStock} />
+                                            <Field label="Cover Ink"          value={viewQuote.coverInk} />
+                                            <Field label="Cover Lamination"   value={viewQuote.coverLamination} />
+                                            <Field label="Board Calliper"     value={viewQuote.boardCalliper} />
+                                            <Field label="Dust Jacket"        value={viewQuote.dustJacket} />
+                                            <Field label="Specialty Finishes" value={viewQuote.specialtyFinishes} />
+                                            <Field label="Binding Notes"      value={viewQuote.bindingNotes} />
+                                        </div>
+                                    </div>
+
+                                    {/* Text & Paper */}
+                                    <div>
+                                        <DrawerSection title="Text & Paper" />
+                                        <div className="grid grid-cols-2 gap-x-8 gap-y-4 mt-3">
+                                            <Field label="Paper Stock"        value={viewQuote.textPaperStock} />
+                                            <Field label="Text Ink"           value={viewQuote.textInk} />
+                                            <Field label="Endsheet Stock"     value={viewQuote.endsheetStock} />
+                                            <Field label="Endsheet Printing"  value={viewQuote.endsheetPrinting} />
+                                        </div>
+                                    </div>
+
+                                    {/* Shipping & Delivery */}
+                                    <div>
+                                        <DrawerSection title="Shipping & Delivery" />
+                                        <div className="grid grid-cols-2 gap-x-8 gap-y-4 mt-3">
+                                            <Field label="Quantities"      value={viewQuote.quantities?.join(', ')} />
+                                            <Field label="Packing Method"  value={viewQuote.packingMethod} />
+                                            <Field label="Shipping Method" value={viewQuote.shippingMethod} />
+                                        </div>
+                                        {(viewQuote.deliveryAddress || viewQuote.deliveryCity || viewQuote.deliveryCountry || viewQuote.deliveryZip) && (
+                                            <div className="mt-4 pt-4 border-t border-slate-100">
+                                                <div className="space-y-0.5 mb-3">
+                                                    <p className="text-[11px] text-slate-400">Delivery Address</p>
+                                                    {viewQuote.deliveryAddress && (
+                                                        <p className="text-sm text-slate-700">{viewQuote.deliveryAddress}</p>
+                                                    )}
+                                                </div>
+                                                <div className="grid grid-cols-3 gap-x-8 gap-y-3">
+                                                    <Field label="City"    value={viewQuote.deliveryCity} />
+                                                    <Field label="Country" value={viewQuote.deliveryCountry} />
+                                                    <Field label="Zip"     value={viewQuote.deliveryZip} />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Special Instructions */}
+                                    {viewQuote.specialInstructions && (
+                                        <div>
+                                            <DrawerSection title="Special Instructions" />
+                                            <p className="mt-3 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+                                                {viewQuote.specialInstructions}
+                                            </p>
                                         </div>
                                     )}
+
+                                    {/* Timeline */}
+                                    <div>
+                                        <DrawerSection title="Timeline" />
+                                        <div className="grid grid-cols-2 gap-x-8 gap-y-4 mt-3">
+                                            <Field label="Created"  value={formatDate(viewQuote.createdAt)} />
+                                            <Field label="Updated"  value={formatDate(viewQuote.updatedAt)} />
+                                        </div>
+                                    </div>
+
+                                    <div className="h-4" />
+                                </div>
+                            </ScrollArea>
+
+                            {/* ─── Drawer Footer ─── */}
+                            <div className="border-t border-slate-100 px-6 py-4 flex items-center justify-between gap-3 shrink-0 bg-white">
+                                <Select
+                                    value={viewQuote.status ?? 'new'}
+                                    disabled={statusMutation.isPending}
+                                    onValueChange={(val) =>
+                                        statusMutation.mutate({ id: viewQuote._id, status: val as QuoteStatus })
+                                    }
+                                >
+                                    <SelectTrigger className="w-[150px] h-9 text-sm">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {(Object.keys(STATUS_CONFIG) as QuoteStatus[]).map((s) => (
+                                            <SelectItem key={s} value={s} className="text-sm">{STATUS_CONFIG[s].label}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+
+                                <div className="flex items-center gap-2">
+                                    <Button variant="outline" size="sm" onClick={() => handleDownloadQuote(viewQuote)} className="gap-1.5">
+                                        <Download className="h-3.5 w-3.5" /> Download
+                                    </Button>
+                                    <Button
+                                        variant="destructive"
+                                        size="sm"
+                                        onClick={() => handleDeleteClick(viewQuote._id)}
+                                        className="gap-1.5"
+                                    >
+                                        Delete
+                                    </Button>
                                 </div>
                             </div>
-                            <div className="text-xs text-muted-foreground border-t pt-3">
-                                Received on {formatDate(viewEnquiry?.createdAt)}
-                            </div>
-                        </div>
+                        </>
                     )}
-                </DialogContent>
-            </Dialog>
+                </SheetContent>
+            </Sheet>
 
-            {/* ── Delete Dialog ────────────────────────────────────────────── */}
-            <AlertDialog
-                open={dialogOpen}
-                onOpenChange={(open) => {
-                    setDialogOpen(open);
-                    if (!open) setDeleteId(null);
-                }}
-            >
+            {/* ── DELETE CONFIRMATION ────────────────────────────────────────────── */}
+            <AlertDialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setDeleteId(null); }}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogTitle>Delete Quote Request?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            This action cannot be undone. This enquiry will be permanently deleted.
+                            This action cannot be undone. The quote request will be permanently deleted.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -634,7 +703,7 @@ const EnquiriesPage = () => {
                         <AlertDialogAction
                             onClick={() => deleteMutation.mutate()}
                             disabled={deleteMutation.isPending}
-                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            className="bg-red-600 hover:bg-red-700"
                         >
                             {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
                         </AlertDialogAction>
@@ -645,4 +714,4 @@ const EnquiriesPage = () => {
     );
 };
 
-export default EnquiriesPage;
+export default RequestQuotesPage;

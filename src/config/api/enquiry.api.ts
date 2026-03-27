@@ -1,31 +1,68 @@
 import httpClient from "@/config/http/httpClient";
 
-export type EnquiryStatus = "new" | "contacted" | "quoted" | "converted" | "closed";
+export type QuoteStatus = "new" | "contacted" | "quoted" | "converted" | "closed";
 
-export interface Enquiry {
+export interface RequestQuote {
   _id: string;
   fullName: string;
   companyName: string;
   email: string;
-  phoneNumber: string;
+  phone: string;
   country: string;
-  productType: "Books" | "Board Books" | "Journals/Diaries" | "Greeting Cards" | "Packaging" | "Other";
-  bindingType: "Paperback / Perfect Bound" | "Hardcase" | "Board Book" | "Saddle Stitch" | "Spiral/Wiro" | "Not Sure";
-  approximateQuantity: string;
-  requiredDeliveryDate?: string;
-  specialtyFinishing: string;
-  projectDescription?: string;
-  howDidYouHear?: "Google Search" | "Social Media" | "Referral / Word of Mouth" | "Trade Show / Event" | "Advertisement" | "Email / Newsletter" | "Other";
-  status: EnquiryStatus;
+  stateProvince: string;
+  city: string;
+  zipCode: string;
+
+  bookTitle: string;
+  bookCategory?: string;
+  trimSize: string;
+  orientation: "Portrait" | "Landscape" | "Square";
+  proofType: "Epsons" | "PDFs" | "Full Book Digitally Printed";
+
+  bindingType: string;
+  bindingNotes?: string;
+  coverStock: string;
+  coverInk: "4/0 CMYK" | "1/0 Black" | "4/0 CMYK + Varnish" | "PMS" | "Custom";
+  coverLamination: string;
+  boardCalliper?: string;
+  specialtyFinishes?: string;
+
+  dustJacket: "No" | "Yes";
+  dustJacketStock?: string;
+  dustJacketInk?: string;
+  dustJacketLamination?: string;
+  dustJacketFinishes?: string;
+
+  endsheetStock?: string;
+  endsheetPrinting?: string;
+
+  totalPages: string;
+  textPaperStock: string;
+  textInk: string;
+
+  quantities: number[];
+
+  packingMethod?: string;
+  shippingMethod: string;
+  deliveryAddress: string;
+  deliveryCity: string;
+  deliveryCountry: string;
+  deliveryZip: string;
+
+  specialInstructions?: string;
+  howDidYouHear?: string;
+
+  status: QuoteStatus;
   notes?: string;
+
   createdAt: string;
   updatedAt: string;
 }
 
-export type CreateEnquiryPayload = Omit<Enquiry, "_id" | "status" | "notes" | "createdAt" | "updatedAt">;
+export type CreateRequestQuotePayload = Omit<RequestQuote, "_id" | "status" | "notes" | "createdAt" | "updatedAt">;
 
-export interface UpdateEnquiryPayload {
-  status?: EnquiryStatus;
+export interface UpdateRequestQuotePayload {
+  status?: QuoteStatus;
   notes?: string;
 }
 
@@ -35,19 +72,19 @@ export interface DateRangeParams {
   endDate?: string;   // YYYY-MM-DD
 }
 
-export interface GetEnquiriesParams extends DateRangeParams {
-  productType?: string;
+export interface GetRequestQuotesParams extends DateRangeParams {
+  bookCategory?: string;
   country?: string;
-  status?: EnquiryStatus;
+  status?: QuoteStatus;
   page?: number;
   limit?: number;
 }
 
 // Export has no page/limit — only filters
-export interface ExportEnquiriesParams extends DateRangeParams {
-  productType?: string;
+export interface ExportRequestQuotesParams extends DateRangeParams {
+  bookCategory?: string;
   country?: string;
-  status?: EnquiryStatus;
+  status?: QuoteStatus;
 }
 
 interface ApiResponse<T> {
@@ -65,23 +102,23 @@ export interface PaginationMeta {
   hasPrevPage: boolean;
 }
 
-export interface PaginatedEnquiries {
-  data: Enquiry[];
+export interface PaginatedRequestQuotes {
+  data: RequestQuote[];
   pagination: PaginationMeta;
 }
 
-// POST — create enquiry (public)
-export const createEnquiry = async (payload: CreateEnquiryPayload): Promise<Enquiry> => {
-  const response = await httpClient.post<ApiResponse<Enquiry>>("enquiries", payload);
+// POST — create quote request (public)
+export const createRequestQuote = async (payload: CreateRequestQuotePayload): Promise<RequestQuote> => {
+  const response = await httpClient.post<ApiResponse<RequestQuote>>("request-quotes", payload);
   return response.data.data;
 };
 
-// GET — all enquiries paginated (admin protected)
-export const getAllEnquiries = async (
-  params: GetEnquiriesParams = {}
-): Promise<PaginatedEnquiries> => {
-  const response = await httpClient.get<ApiResponse<Enquiry[]> & { pagination: PaginationMeta }>(
-    "enquiries",
+// GET — all quote requests paginated (admin protected)
+export const getAllRequestQuotes = async (
+  params: GetRequestQuotesParams = {}
+): Promise<PaginatedRequestQuotes> => {
+  const response = await httpClient.get<ApiResponse<RequestQuote[]> & { pagination: PaginationMeta }>(
+    "request-quotes",
     { params }
   );
   return {
@@ -90,30 +127,36 @@ export const getAllEnquiries = async (
   };
 };
 
-// GET — export all matching enquiries, no pagination (admin protected)
-export const exportEnquiries = async (
-  params: ExportEnquiriesParams = {}
-): Promise<Enquiry[]> => {
-  const response = await httpClient.get<ApiResponse<Enquiry[]>>(
-    "enquiries/export",
+// GET — export all matching quote requests, no pagination (admin protected)
+export const exportRequestQuotes = async (
+  params: ExportRequestQuotesParams = {}
+): Promise<RequestQuote[]> => {
+  const response = await httpClient.get<ApiResponse<RequestQuote[]>>(
+    "request-quotes/export",
     { params }
   );
   return response.data.data;
 };
 
-// GET — single enquiry by id (admin protected)
-export const getEnquiryById = async (id: string): Promise<Enquiry> => {
-  const response = await httpClient.get<ApiResponse<Enquiry>>(`enquiries/${id}`);
+// GET — single quote request by id (admin protected)
+export const getRequestQuoteById = async (id: string): Promise<RequestQuote> => {
+  const response = await httpClient.get<ApiResponse<RequestQuote>>(`request-quotes/${id}`);
   return response.data.data;
 };
 
-// PATCH — update enquiry status + notes (admin protected)
-export const updateEnquiry = async (id: string, payload: UpdateEnquiryPayload): Promise<Enquiry> => {
-  const response = await httpClient.patch<ApiResponse<Enquiry>>(`enquiries/${id}`, payload);
+// PATCH — update quote request status + notes (admin protected)
+export const updateRequestQuote = async (id: string, payload: UpdateRequestQuotePayload): Promise<RequestQuote> => {
+  const response = await httpClient.patch<ApiResponse<RequestQuote>>(`request-quotes/${id}`, payload);
   return response.data.data;
 };
+
+// DELETE — quote request (admin protected)
+export const deleteRequestQuote = async (id: string): Promise<void> => {
+  await httpClient.delete<ApiResponse<RequestQuote>>(`request-quotes/${id}`);
+};
+
 
 // DELETE — enquiry (admin protected)
 export const deleteEnquiry = async (id: string): Promise<void> => {
-  await httpClient.delete<ApiResponse<Enquiry>>(`enquiries/${id}`);
+  await httpClient.delete<ApiResponse<unknown>>(`enquiries/${id}`);
 };
