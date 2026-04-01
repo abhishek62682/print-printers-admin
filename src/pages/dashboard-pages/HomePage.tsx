@@ -41,11 +41,11 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  Sheet,
+  SheetContent,
+} from '@/components/ui/sheet';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { getStats } from '@/config/api/dashboard.api';
 import type { RecentEnquiry, RecentBlog } from '@/config/api/dashboard.api';
@@ -59,17 +59,48 @@ import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
-const STATUS_COLORS: Record<string, string> = {
-  new:       'bg-blue-100 text-blue-700 border-blue-200',
-  contacted: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-  quoted:    'bg-purple-100 text-purple-700 border-purple-200',
-  converted: 'bg-green-100 text-green-700 border-green-200',
-  closed:    'bg-gray-100 text-gray-600 border-gray-200',
+// ── Status config ──────────────────────────────────────────────────────────
+const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
+  new:       { label: 'New',       className: 'bg-blue-50 text-blue-700 border-blue-200' },
+  contacted: { label: 'Contacted', className: 'bg-amber-50 text-amber-700 border-amber-200' },
+  quoted:    { label: 'Quoted',    className: 'bg-purple-50 text-purple-700 border-purple-200' },
+  converted: { label: 'Converted', className: 'bg-green-50 text-green-700 border-green-200' },
+  closed:    { label: 'Closed',    className: 'bg-slate-100 text-slate-600 border-slate-200' },
 };
 
-const formatDate = (d: string) =>
-  new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+const StatusBadge = ({ status }: { status: string }) => {
+  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.new;
+  return (
+    <span className={`inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-medium ${cfg.className}`}>
+      {cfg.label}
+    </span>
+  );
+};
 
+// ── Drawer field ────────────────────────────────────────────────────────────
+const Field = ({ label, value }: { label: string; value?: string | null }) => {
+  if (!value) return null;
+  return (
+    <div className="space-y-0.5">
+      <p className="text-[11px] text-slate-400">{label}</p>
+      <p className="text-sm text-slate-700">{value}</p>
+    </div>
+  );
+};
+
+const DrawerSection = ({ title }: { title: string }) => (
+  <div className="pt-2 pb-1">
+    <p className="text-xs text-slate-400">{title}</p>
+    <Separator className="mt-1.5" />
+  </div>
+);
+
+const formatDate = (d?: string | null) => {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 const HomePage = () => {
   const navigate    = useNavigate();
   const queryClient = useQueryClient();
@@ -78,7 +109,7 @@ const HomePage = () => {
   const [enqDeleteId,   setEnqDeleteId]   = useState<string | null>(null);
   const [enqDeleteOpen, setEnqDeleteOpen] = useState(false);
   const [viewEnquiry,   setViewEnquiry]   = useState<RecentEnquiry | null>(null);
-  const [viewOpen,      setViewOpen]      = useState(false);
+  const [drawerOpen,    setDrawerOpen]    = useState(false);
 
   // ── Blog state ─────────────────────────────────────────────────────────
   const [blogDeleteId,   setBlogDeleteId]   = useState<string | null>(null);
@@ -97,13 +128,10 @@ const HomePage = () => {
       queryClient.invalidateQueries({ queryKey: ['stats'] });
       setEnqDeleteOpen(false);
       setEnqDeleteId(null);
-      toast.success('Enquiry deleted', {
-        description: 'The enquiry has been permanently removed.',
-      });
+      setDrawerOpen(false);
+      toast.success('Enquiry deleted', { description: 'The enquiry has been permanently removed.' });
     },
-    onError: () => toast.error('Failed to delete enquiry', {
-      description: 'Something went wrong. Please try again.',
-    }),
+    onError: () => toast.error('Failed to delete enquiry', { description: 'Something went wrong. Please try again.' }),
   });
 
   const deleteBlogMutation = useMutation({
@@ -112,15 +140,17 @@ const HomePage = () => {
       queryClient.invalidateQueries({ queryKey: ['stats'] });
       setBlogDeleteOpen(false);
       setBlogDeleteId(null);
-      toast.success('Blog deleted', {
-        description: 'The blog post has been permanently removed.',
-      });
+      toast.success('Blog deleted', { description: 'The blog post has been permanently removed.' });
     },
-    onError: () => toast.error('Failed to delete blog', {
-      description: 'Something went wrong. Please try again.',
-    }),
+    onError: () => toast.error('Failed to delete blog', { description: 'Something went wrong. Please try again.' }),
   });
 
+  const handleViewEnquiry = (enq: RecentEnquiry) => {
+    setViewEnquiry(enq);
+    setDrawerOpen(true);
+  };
+
+  // ─────────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col">
 
@@ -143,262 +173,276 @@ const HomePage = () => {
         {data && <SectionCards data={data} />}
 
         {/* ── Recent Enquiries ─────────────────────────────────────────── */}
-        <Card className="mt-6">
+        <Card className="mt-6 border-slate-200">
           <CardHeader>
-            <CardTitle>Recent Enquiries</CardTitle>
-            <CardDescription className="mt-1">Latest inquiries from your contact form.</CardDescription>
+            <CardTitle className="text-xl font-bold">Recent Enquiries</CardTitle>
+            <CardDescription className="mt-0.5">Latest inquiries from your contact form.</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading && (
-              <div className="flex items-center justify-center py-8 text-sm text-muted-foreground gap-2">
-                <LoaderCircle className="animate-spin h-4 w-4" />
-                Loading...
+              <div className="flex items-center justify-center py-8 text-sm text-slate-500 gap-2">
+                <LoaderCircle className="animate-spin h-4 w-4" /> Loading...
               </div>
             )}
-
             {!isLoading && (data?.recentEnquiries?.length ?? 0) === 0 && (
-              <p className="py-8 text-center text-sm text-muted-foreground">No enquiries yet.</p>
+              <p className="py-8 text-center text-sm text-slate-400">No enquiries yet.</p>
             )}
-
             {!isLoading && (data?.recentEnquiries?.length ?? 0) > 0 && (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-xs">Name</TableHead>
-                    <TableHead className="text-xs">Company</TableHead>
-                    <TableHead className="text-xs">Email</TableHead>
-                    <TableHead className="hidden md:table-cell text-xs">Product Type</TableHead>
-                    <TableHead className="text-xs">Status</TableHead>
-                    <TableHead className="hidden md:table-cell text-xs">Received</TableHead>
-                    <TableHead className="text-xs">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data?.recentEnquiries?.map((enq: RecentEnquiry) => (
-                    <TableRow key={enq._id}>
-                      <TableCell className="font-medium max-w-[140px]">
-                        <p className="truncate">{enq.fullName ?? '—'}</p>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground max-w-[140px]">
-                        <p className="truncate">{enq.companyName ?? '—'}</p>
-                      </TableCell>
-                      <TableCell className="text-sm max-w-[180px]">
-                        <p className="truncate">{enq.email ?? '—'}</p>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        <Badge variant="outline" className="text-xs">
-                          {enq.productType ?? '—'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[enq.status] ?? ''}`}>
-                          {enq.status.charAt(0).toUpperCase() + enq.status.slice(1)}
-                        </span>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
-                        {formatDate(enq.createdAt)}
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button aria-haspopup="true" size="icon" variant="ghost">
-                              <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Toggle menu</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => { setViewEnquiry(enq); setViewOpen(true); }}>
-                              View Details
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => navigate(`/dashboard/enquiries`)}>
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
-                              onSelect={(e) => {
-                                e.preventDefault();
-                                setEnqDeleteId(enq._id);
-                                setTimeout(() => setEnqDeleteOpen(true), 100);
-                              }}
-                            >
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
+              <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-slate-50 hover:bg-slate-50">
+                      <TableHead className="text-xs font-semibold text-slate-600">Name / Company</TableHead>
+                      <TableHead className="text-xs font-semibold text-slate-600">Email</TableHead>
+                      <TableHead className="text-xs font-semibold text-slate-600">Status</TableHead>
+                      <TableHead className="text-xs font-semibold text-slate-600">Received</TableHead>
+                      <TableHead className="text-xs font-semibold text-slate-600 text-right">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {data?.recentEnquiries?.map((enq: RecentEnquiry) => (
+                      <TableRow
+                        key={enq._id}
+                        onDoubleClick={() => handleViewEnquiry(enq)}
+                        className="hover:bg-slate-50 transition-colors border-b border-slate-100 cursor-pointer"
+                      >
+                        <TableCell className="py-3.5">
+                          <div className="flex flex-col gap-0.5">
+                            <p className="text-sm text-slate-700">{enq.fullName ?? '—'}</p>
+                            <p className="text-xs text-slate-400">{enq.companyName ?? '—'}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-3.5">
+                          <p className="text-sm text-slate-700">{enq.email ?? '—'}</p>
+                        </TableCell>
+                        <TableCell className="py-3.5" onClick={(e) => e.stopPropagation()}>
+                          <StatusBadge status={enq.status} />
+                        </TableCell>
+                        <TableCell className="py-3.5">
+                          <p className="text-sm text-slate-600 whitespace-nowrap">{formatDate(enq.createdAt)}</p>
+                        </TableCell>
+                        <TableCell className="py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-slate-100">
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Toggle menu</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-44">
+                              <DropdownMenuLabel className="text-xs font-semibold">Actions</DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-sm cursor-pointer" onClick={() => handleViewEnquiry(enq)}>
+                                View Details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="text-sm cursor-pointer" onClick={() => navigate('/dashboard/enquiries')}>
+                                Go to Enquiries
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-red-600 text-sm cursor-pointer"
+                                onSelect={(e) => {
+                                  e.preventDefault();
+                                  setEnqDeleteId(enq._id);
+                                  setTimeout(() => setEnqDeleteOpen(true), 100);
+                                }}
+                              >
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>
 
         {/* ── Recent Blogs ─────────────────────────────────────────────── */}
-        <Card className="mt-6">
+        <Card className="mt-6 border-slate-200">
           <CardHeader>
-            <CardTitle>Recent Blogs</CardTitle>
-            <CardDescription className="mt-1">Latest blog posts published on your site.</CardDescription>
+            <CardTitle className="text-xl font-bold">Recent Blogs</CardTitle>
+            <CardDescription className="mt-0.5">Latest blog posts published on your site.</CardDescription>
           </CardHeader>
           <CardContent>
             {isLoading && (
-              <div className="flex items-center justify-center py-8 text-sm text-muted-foreground gap-2">
-                <LoaderCircle className="animate-spin h-4 w-4" />
-                Loading...
+              <div className="flex items-center justify-center py-8 text-sm text-slate-500 gap-2">
+                <LoaderCircle className="animate-spin h-4 w-4" /> Loading...
               </div>
             )}
-
             {!isLoading && (data?.recentBlogs?.length ?? 0) === 0 && (
-              <p className="py-8 text-center text-sm text-muted-foreground">No blogs yet.</p>
+              <p className="py-8 text-center text-sm text-slate-400">No blogs yet.</p>
             )}
-
             {!isLoading && (data?.recentBlogs?.length ?? 0) > 0 && (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-xs w-[64px]">Cover</TableHead>
-                    <TableHead className="text-xs">Title</TableHead>
-                    <TableHead className="text-xs">Author</TableHead>
-                    <TableHead className="hidden md:table-cell text-xs">Tags</TableHead>
-                    <TableHead className="text-xs">Active</TableHead>
-                    <TableHead className="hidden md:table-cell text-xs">Created at</TableHead>
-                    <TableHead className="text-xs">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data?.recentBlogs?.map((blog: RecentBlog) => (
-                    <TableRow key={blog._id}>
-                      <TableCell className="hidden sm:table-cell">
-                        {blog?.coverImage ? (
-                          <img
-                            src={`${API_BASE_URL}/${blog.coverImage}`}
-                            alt={blog?.title ?? ''}
-                            className="h-10 w-10 rounded-md object-cover"
-                          />
-                        ) : (
-                          <div className="flex h-10 w-10 items-center justify-center rounded-md bg-muted">
-                            <ImageOff className="h-4 w-4 text-muted-foreground" />
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="font-medium max-w-[180px]">
-                        <p className="truncate">{blog?.title ?? '—'}</p>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {blog?.author ?? '—'}
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        {(blog?.tags?.length ?? 0) > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {blog?.tags?.slice(0, 3).map((tag: string) => (
-                              <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
-                            ))}
-                            {(blog?.tags?.length ?? 0) > 3 && (
-                              <Badge variant="outline" className="text-xs">
-                                +{(blog?.tags?.length ?? 0) - 3}
-                              </Badge>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">No tags</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={blog?.isActive
-                            ? 'bg-green-100 text-green-700 border-green-200 text-xs'
-                            : 'bg-gray-100 text-gray-600 border-gray-200 text-xs'}
-                        >
-                          {blog?.isActive ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
-                        {blog?.createdAt
-                          ? new Date(blog.createdAt).toLocaleDateString('en-US', {
-                            year: 'numeric', month: 'short', day: 'numeric',
-                          })
-                          : '—'}
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button aria-haspopup="true" size="icon" variant="ghost">
-                              <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Toggle menu</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            <DropdownMenuItem onClick={() => navigate(`/dashboard/blogs/${blog._id}/edit`)}>
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
-                              onSelect={(e) => {
-                                e.preventDefault();
-                                setBlogDeleteId(blog._id);
-                                setTimeout(() => setBlogDeleteOpen(true), 100);
-                              }}
-                            >
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
+              <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-slate-50 hover:bg-slate-50">
+                      <TableHead className="text-xs font-semibold text-slate-600 w-16">Cover</TableHead>
+                      <TableHead className="text-xs font-semibold text-slate-600">Title</TableHead>
+                      <TableHead className="text-xs font-semibold text-slate-600">Author</TableHead>
+                      <TableHead className="text-xs font-semibold text-slate-600 hidden md:table-cell">Tags</TableHead>
+                      <TableHead className="text-xs font-semibold text-slate-600">Status</TableHead>
+                      <TableHead className="text-xs font-semibold text-slate-600 hidden md:table-cell">Created</TableHead>
+                      <TableHead className="text-xs font-semibold text-slate-600 text-right">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {data?.recentBlogs?.map((blog: RecentBlog) => (
+                      <TableRow
+                        key={blog._id}
+                        className="hover:bg-slate-50 transition-colors border-b border-slate-100"
+                      >
+                        <TableCell className="py-3">
+                          {blog?.coverImage ? (
+                            <img
+                              src={`${API_BASE_URL}/${blog.coverImage}`}
+                              alt={blog?.title ?? ''}
+                              className="h-10 w-10 rounded-md object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-10 w-10 items-center justify-center rounded-md bg-slate-100">
+                              <ImageOff className="h-4 w-4 text-slate-400" />
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="py-3 max-w-[200px]">
+                          <p className="text-sm text-slate-700 truncate">{blog?.title ?? '—'}</p>
+                        </TableCell>
+                        <TableCell className="py-3">
+                          {/* API returns createdBy as { _id, username } object */}
+                          <p className="text-sm text-slate-600">
+                            {typeof blog?.createdBy === 'object' && blog.createdBy !== null
+                              ? blog.createdBy.username
+                              : (blog?.author ?? '—')}
+                          </p>
+                        </TableCell>
+                        <TableCell className="py-3 hidden md:table-cell">
+                          {(blog?.tags?.length ?? 0) > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {blog?.tags?.slice(0, 3).map((tag: string) => (
+                                <Badge key={tag} variant="outline" className="text-xs">{tag}</Badge>
+                              ))}
+                              {(blog?.tags?.length ?? 0) > 3 && (
+                                <Badge variant="outline" className="text-xs">+{(blog?.tags?.length ?? 0) - 3}</Badge>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-400">No tags</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <span className={`inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-medium ${
+                            blog?.isActive
+                              ? 'bg-green-50 text-green-700 border-green-200'
+                              : 'bg-slate-100 text-slate-600 border-slate-200'
+                          }`}>
+                            {blog?.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </TableCell>
+                        <TableCell className="py-3 hidden md:table-cell">
+                          <p className="text-sm text-slate-600 whitespace-nowrap">{formatDate(blog?.createdAt)}</p>
+                        </TableCell>
+                        <TableCell className="py-3 text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-slate-100">
+                                <MoreHorizontal className="h-4 w-4" />
+                                <span className="sr-only">Toggle menu</span>
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-44">
+                              <DropdownMenuLabel className="text-xs font-semibold">Actions</DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-sm cursor-pointer" onClick={() => navigate(`/dashboard/blogs/${blog._id}/edit`)}>
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-red-600 text-sm cursor-pointer"
+                                onSelect={(e) => {
+                                  e.preventDefault();
+                                  setBlogDeleteId(blog._id);
+                                  setTimeout(() => setBlogDeleteOpen(true), 100);
+                                }}
+                              >
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>
 
       </div>
 
-      {/* ── Enquiry View Dialog ────────────────────────────────────────────── */}
-      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Enquiry Details</DialogTitle>
-          </DialogHeader>
+      {/* ── Enquiry Detail Drawer ──────────────────────────────────────────── */}
+      <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col gap-0 overflow-hidden">
           {viewEnquiry && (
-            <div className="space-y-3 text-sm">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <p className="text-xs text-muted-foreground">Name</p>
-                  <p className="font-medium">{viewEnquiry.fullName ?? '—'}</p>
+            <>
+              {/* Header */}
+              <div className="flex items-start justify-between px-6 py-5 border-b border-slate-100 shrink-0">
+                <div className="flex flex-col gap-0.5">
+                  <StatusBadge status={viewEnquiry.status} />
+                  <p className="text-sm text-slate-700 mt-1">{viewEnquiry.fullName}</p>
+                  {viewEnquiry.companyName && (
+                    <p className="text-xs text-slate-400">{viewEnquiry.companyName}</p>
+                  )}
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Company</p>
-                  <p className="font-medium">{viewEnquiry.companyName ?? '—'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Email</p>
-                  <p className="font-medium">{viewEnquiry.email ?? '—'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Product Type</p>
-                  <p className="font-medium">{viewEnquiry.productType ?? '—'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Status</p>
-                  <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[viewEnquiry.status] ?? ''}`}>
-                    {viewEnquiry.status.charAt(0).toUpperCase() + viewEnquiry.status.slice(1)}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Received</p>
-                  <p className="font-medium">{formatDate(viewEnquiry.createdAt)}</p>
-                </div>
+                <p className="text-xs text-slate-400 whitespace-nowrap pt-1 pr-8">
+                  {formatDate(viewEnquiry.createdAt)}
+                </p>
               </div>
-            </div>
+
+              {/* Body */}
+              <ScrollArea className="flex-1 min-h-0">
+                <div className="px-6 py-5 space-y-6">
+                  <div>
+                    <DrawerSection title="Contact" />
+                    <div className="grid grid-cols-2 gap-x-8 gap-y-4 mt-3">
+                      <Field label="Name"    value={viewEnquiry.fullName} />
+                      <Field label="Company" value={viewEnquiry.companyName} />
+                      <Field label="Email"   value={viewEnquiry.email} />
+                    </div>
+                  </div>
+                  <div>
+                    <DrawerSection title="Enquiry" />
+                    <div className="grid grid-cols-2 gap-x-8 gap-y-4 mt-3">
+                      <Field label="Status"  value={STATUS_CONFIG[viewEnquiry.status]?.label ?? viewEnquiry.status} />
+                      <Field label="Received" value={formatDate(viewEnquiry.createdAt)} />
+                    </div>
+                  </div>
+                  <div className="h-4" />
+                </div>
+              </ScrollArea>
+
+              {/* Footer */}
+              <div className="border-t border-slate-100 px-6 py-4 flex items-center justify-end gap-2 shrink-0 bg-white">
+                <Button variant="outline" size="sm" onClick={() => navigate('/dashboard/enquiries')}>
+                  Go to Enquiries
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => { setEnqDeleteId(viewEnquiry._id); setTimeout(() => setEnqDeleteOpen(true), 100); }}
+                >
+                  Delete
+                </Button>
+              </div>
+            </>
           )}
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
 
       {/* ── Enquiry Delete Dialog ──────────────────────────────────────────── */}
       <AlertDialog
@@ -407,7 +451,7 @@ const HomePage = () => {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Enquiry?</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This enquiry will be permanently deleted.
             </AlertDialogDescription>
@@ -417,7 +461,7 @@ const HomePage = () => {
             <AlertDialogAction
               onClick={() => deleteEnquiryMutation.mutate()}
               disabled={deleteEnquiryMutation.isPending}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-red-600 hover:bg-red-700"
             >
               {deleteEnquiryMutation.isPending ? 'Deleting...' : 'Delete'}
             </AlertDialogAction>
@@ -432,7 +476,7 @@ const HomePage = () => {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Blog?</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. This blog post will be permanently deleted.
             </AlertDialogDescription>
@@ -442,7 +486,7 @@ const HomePage = () => {
             <AlertDialogAction
               onClick={() => deleteBlogMutation.mutate()}
               disabled={deleteBlogMutation.isPending}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-red-600 hover:bg-red-700"
             >
               {deleteBlogMutation.isPending ? 'Deleting...' : 'Delete'}
             </AlertDialogAction>
