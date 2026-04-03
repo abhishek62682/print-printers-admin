@@ -187,7 +187,7 @@ const TestimonialsPage = () => {
                     </div>
                 </CardHeader>
 
-                <CardContent>
+                <CardContent className="p-0">
                     {isLoading && (
                         <div className="py-16 text-center text-sm text-muted-foreground">
                             Loading testimonials…
@@ -199,134 +199,137 @@ const TestimonialsPage = () => {
                         </div>
                     )}
                     {!isLoading && !isError && (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="text-xs w-[64px]">Avatar</TableHead>
-                                    <TableHead className="text-xs">Name</TableHead>
-                                    <TableHead className="text-xs">Designation</TableHead>
-                                    <TableHead className="hidden text-xs md:table-cell">Content</TableHead>
-                                    <TableHead className="text-xs">Active</TableHead>
-                                    <TableHead className="hidden text-xs md:table-cell">Created at</TableHead>
-                                    <TableHead className="text-xs">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {testimonials.map((testimonial: Testimonial) => (
-                                    <TableRow key={testimonial._id}>
-
-                                        {/* Avatar */}
-                                        <TableCell className="hidden sm:table-cell">
-                                            {testimonial?.imageUrl ? (
-                                                <img
-                                                    src={`${API_BASE_URL}/${testimonial.imageUrl}`}
-                                                    alt={testimonial?.name ?? ''}
-                                                    className="h-10 w-10 rounded-full object-cover"
-                                                />
-                                            ) : (
-                                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                                                    <UserCircle2 className="h-5 w-5 text-muted-foreground" />
-                                                </div>
-                                            )}
-                                        </TableCell>
-
-                                        {/* Name */}
-                                        <TableCell className="font-medium max-w-[140px]">
-                                            <p className="truncate">{testimonial?.name ?? '—'}</p>
-                                        </TableCell>
-
-                                        {/* Designation — truncated if long */}
-                                        <TableCell className="max-w-[160px]">
-                                            <Badge
-                                                variant="outline"
-                                                className="max-w-full text-xs"
-                                                title={testimonial?.designation ?? ''}
-                                            >
-                                                <span className="truncate block max-w-[140px]">
-                                                    {testimonial?.designation ?? '—'}
-                                                </span>
-                                            </Badge>
-                                        </TableCell>
-
-                                        {/* Content */}
-                                        <TableCell className="hidden md:table-cell max-w-xs">
-                                            <p className="line-clamp-1 text-muted-foreground text-sm">
-                                                {testimonial?.content ?? '—'}
-                                            </p>
-                                        </TableCell>
-
-                                        {/* Toggle */}
-                                        <TableCell>
-                                            <Switch
-                                                className={testimonial?.isActive ? 'bg-col-blue' : 'bg-gray-300'}
-                                                checked={testimonial?.isActive ?? false}
-                                                disabled={toggleMutation.isPending}
-                                                onCheckedChange={(checked) =>
-                                                    toggleMutation.mutate({ id: testimonial?._id, isActive: checked })
-                                                }
-                                            />
-                                        </TableCell>
-
-                                        {/* Date */}
-                                        <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
-                                            {testimonial?.createdAt
-                                                ? new Date(testimonial.createdAt).toLocaleDateString('en-US', {
-                                                    year: 'numeric',
-                                                    month: 'short',
-                                                    day: 'numeric',
-                                                })
-                                                : '—'}
-                                        </TableCell>
-
-                                        {/* Actions */}
-                                        <TableCell>
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button aria-haspopup="true" size="icon" variant="ghost">
-                                                        <MoreHorizontal className="h-4 w-4" />
-                                                        <span className="sr-only">Toggle menu</span>
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                                    <DropdownMenuItem
-                                                        onClick={() =>
-                                                            navigate(`/dashboard/testimonials/${testimonial._id}/edit`)
-                                                        }
-                                                    >
-                                                        Edit
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem
-                                                        className="text-destructive focus:text-destructive"
-                                                        onSelect={(e) => {
-                                                            e.preventDefault();
-                                                            handleDeleteClick(testimonial._id);
-                                                        }}
-                                                    >
-                                                        Delete
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-
-                                {testimonials.length === 0 && (
+                        // Scrollable wrapper — NO hidden columns, table scrolls horizontally on small screens
+                        <div className="overflow-x-auto w-full">
+                            <Table className="min-w-[800px] w-full">
+                                <TableHeader>
                                     <TableRow>
-                                        <TableCell
-                                            colSpan={7}
-                                            className="py-16 text-center text-sm text-muted-foreground"
-                                        >
-                                            No testimonials found. Add your first one!
-                                        </TableCell>
+                                        <TableHead className="text-xs w-[64px]">Avatar</TableHead>
+                                        <TableHead className="text-xs min-w-[120px]">Name</TableHead>
+                                        <TableHead className="text-xs min-w-[150px]">Designation</TableHead>
+                                        <TableHead className="text-xs min-w-[200px]">Content</TableHead>
+                                        <TableHead className="text-xs min-w-[80px]">Active</TableHead>
+                                        <TableHead className="text-xs min-w-[120px]">Created at</TableHead>
+                                        <TableHead className="text-xs w-[80px]">Actions</TableHead>
                                     </TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
+                                </TableHeader>
+                                <TableBody>
+                                    {testimonials.map((testimonial: Testimonial) => (
+                                        <TableRow key={testimonial._id}>
+
+                                            {/* Avatar */}
+                                            <TableCell>
+                                                {testimonial?.imageUrl ? (
+                                                    <img
+                                                        src={`${API_BASE_URL}/${testimonial.imageUrl}`}
+                                                        alt={testimonial?.name ?? ''}
+                                                        className="h-10 w-10 rounded-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                                                        <UserCircle2 className="h-5 w-5 text-muted-foreground" />
+                                                    </div>
+                                                )}
+                                            </TableCell>
+
+                                            {/* Name */}
+                                            <TableCell className="font-medium max-w-35">
+                                                <p className="truncate">{testimonial?.name ?? '—'}</p>
+                                            </TableCell>
+
+                                            {/* Designation */}
+                                            <TableCell className="max-w-[160px]">
+                                                <Badge
+                                                    variant="outline"
+                                                    className="max-w-full text-xs"
+                                                    title={testimonial?.designation ?? ''}
+                                                >
+                                                    <span className="truncate block max-w-[140px]">
+                                                        {testimonial?.designation ?? '—'}
+                                                    </span>
+                                                </Badge>
+                                            </TableCell>
+
+                                            {/* Content */}
+                                            <TableCell className="max-w-xs">
+                                                <p className="line-clamp-1 text-muted-foreground text-sm">
+                                                    {testimonial?.content ?? '—'}
+                                                </p>
+                                            </TableCell>
+
+                                            {/* Toggle */}
+                                            <TableCell>
+                                                <Switch
+                                                    className={testimonial?.isActive ? 'bg-col-blue' : 'bg-gray-300'}
+                                                    checked={testimonial?.isActive ?? false}
+                                                    disabled={toggleMutation.isPending}
+                                                    onCheckedChange={(checked) =>
+                                                        toggleMutation.mutate({ id: testimonial?._id, isActive: checked })
+                                                    }
+                                                />
+                                            </TableCell>
+
+                                            {/* Date */}
+                                            <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                                                {testimonial?.createdAt
+                                                    ? new Date(testimonial.createdAt).toLocaleDateString('en-US', {
+                                                        year: 'numeric',
+                                                        month: 'short',
+                                                        day: 'numeric',
+                                                    })
+                                                    : '—'}
+                                            </TableCell>
+
+                                            {/* Actions */}
+                                            <TableCell>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button aria-haspopup="true" size="icon" variant="ghost">
+                                                            <MoreHorizontal className="h-4 w-4" />
+                                                            <span className="sr-only">Toggle menu</span>
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                        <DropdownMenuItem
+                                                            onClick={() =>
+                                                                navigate(`/dashboard/testimonials/${testimonial._id}/edit`)
+                                                            }
+                                                        >
+                                                            Edit
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem
+                                                            className="text-destructive focus:text-destructive"
+                                                            onSelect={(e) => {
+                                                                e.preventDefault();
+                                                                handleDeleteClick(testimonial._id);
+                                                            }}
+                                                        >
+                                                            Delete
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+
+                                    {testimonials.length === 0 && (
+                                        <TableRow>
+                                            <TableCell
+                                                colSpan={7}
+                                                className="py-16 text-center text-sm text-muted-foreground"
+                                            >
+                                                No testimonials found. Add your first one!
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
                     )}
                 </CardContent>
 
-                <CardFooter className="flex items-center justify-between">
+                <CardFooter className="flex items-center justify-between pt-4">
                     <div className="text-xs text-muted-foreground">
                         {pagination && pagination.total > 0 ? (
                             <>

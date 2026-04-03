@@ -226,9 +226,9 @@ const BlogsPage = () => {
                                             <p className="truncate">{blog?.title ?? '—'}</p>
                                         </TableCell>
 
-                                        <TableCell className="text-sm text-muted-foreground">
-                                            {blog?.createdBy?.username ?? '—'}
-                                        </TableCell>
+                                      <TableCell className="text-sm text-muted-foreground">
+  {blog?.authorName || blog?.createdBy?.username || '—'}
+</TableCell>
 
                                         <TableCell className="hidden md:table-cell">
                                             {(blog?.tags?.length ?? 0) > 0 ? (

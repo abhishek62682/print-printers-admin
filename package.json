@@ -29,6 +29,7 @@
     "axios": "^1.13.6",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "exceljs": "^4.4.0",
     "input-otp": "^1.4.2",
     "jodit-react": "^5.3.21",
     "js-cookie": "^3.0.5",
@@ -45,7 +46,6 @@
     "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.1",
     "vaul": "^1.1.2",
-    "xlsx": "^0.18.5",
     "zod": "^4.3.6",
     "zustand": "^5.0.11"
   },

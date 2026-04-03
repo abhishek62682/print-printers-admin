@@ -36,30 +36,23 @@ import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useState, useRef } from 'react';
 import type { ChangeEvent } from 'react';
-import type { AxiosError } from 'axios';
+import type { ApiAxiosError } from '@/types/error';
 
-// ── Required label helper ──────────────────────────────────────────────────
 const Required = () => <span className="text-destructive ml-0.5">*</span>;
 
-type FormValues = {
-    name: string;
-    designation: string;
-    content: string;
-    isActive: boolean;
-};
-
 const formSchema = z.object({
-    name:        z.string().min(2, { message: 'Name must be at least 2 characters.' }),
-    designation: z.string().min(2, { message: 'Designation must be at least 2 characters.' }),
+    name:        z.string().min(2, { message: 'Name must be at least 2 characters.' }).max(100, { message: 'Name cannot exceed 100 characters.' }),
+    designation: z.string().min(2, { message: 'Designation must be at least 2 characters.' }).max(400, { message: 'Designation cannot exceed 400 characters.' }),
     content:     z.string().min(10, { message: 'Content must be at least 10 characters.' }),
     isActive:    z.boolean(),
 });
+
+type FormValues = z.infer<typeof formSchema>;
 
 const CreateTestimonial = () => {
     const navigate    = useNavigate();
     const queryClient = useQueryClient();
 
-    // ── Image state ────────────────────────────────────────────────────────
     const [imageFile, setImageFile]       = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const imageInputRef                   = useRef<HTMLInputElement | null>(null);
@@ -74,9 +67,10 @@ const CreateTestimonial = () => {
         },
     });
 
-    const isActiveValue = form.watch('isActive');
+    const isActiveValue     = form.watch('isActive');
+    const nameValue         = form.watch('name');
+    const designationValue  = form.watch('designation');
 
-    // ── Image handlers ─────────────────────────────────────────────────────
     const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
         const file = e?.target?.files?.[0];
         if (file) {
@@ -91,7 +85,6 @@ const CreateTestimonial = () => {
         if (imageInputRef.current) imageInputRef.current.value = '';
     };
 
-    // ── Mutation ───────────────────────────────────────────────────────────
     const mutation = useMutation({
         mutationFn: createTestimonial,
         onSuccess: () => {
@@ -101,9 +94,21 @@ const CreateTestimonial = () => {
             });
             navigate('/dashboard/testimonials');
         },
-        onError: (error: AxiosError<{ message: string }>) => {
-            const message = error.response?.data?.message ?? 'Something went wrong. Please try again.';
-            toast.error('Failed to create testimonial', { description: message });
+        onError: (error: ApiAxiosError) => {
+            const fieldErrors = error?.response?.data?.fieldErrors;
+
+            if (fieldErrors) {
+                Object.entries(fieldErrors).forEach(([field, errors]) => {
+                    form.setError(field as keyof FormValues, {
+                        type:    errors[0]?.type    ?? 'server',
+                        message: errors[0]?.message ?? 'Invalid value',
+                    });
+                });
+            }
+
+            toast.error('Failed to create testimonial', {
+                description: error?.response?.data?.message ?? 'Something went wrong. Please try again.',
+            });
         },
     });
 
@@ -113,9 +118,7 @@ const CreateTestimonial = () => {
         formData.append('designation', values.designation);
         formData.append('content',     values.content);
         formData.append('isActive',    String(values.isActive));
-        if (imageFile) {
-            formData.append('image', imageFile);
-        }
+        if (imageFile) formData.append('image', imageFile);
         mutation.mutate(formData);
     }
 
@@ -130,9 +133,7 @@ const CreateTestimonial = () => {
                             </BreadcrumbItem>
                             <BreadcrumbSeparator />
                             <BreadcrumbItem>
-                                <BreadcrumbLink href="/dashboard/testimonials">
-                                    Testimonials
-                                </BreadcrumbLink>
+                                <BreadcrumbLink href="/dashboard/testimonials">Testimonials</BreadcrumbLink>
                             </BreadcrumbItem>
                             <BreadcrumbSeparator />
                             <BreadcrumbItem>
@@ -152,7 +153,7 @@ const CreateTestimonial = () => {
                         <CardContent>
                             <div className="grid gap-6">
 
-                                {/* ── Name ──────────────────────────────────── */}
+                                {/* Name */}
                                 <FormField
                                     control={form.control}
                                     name="name"
@@ -162,12 +163,23 @@ const CreateTestimonial = () => {
                                             <FormControl>
                                                 <Input type="text" className="w-full" {...field} />
                                             </FormControl>
-                                            <FormMessage />
+                                            <div className="flex items-center justify-between mt-1">
+                                                <FormMessage />
+                                                <p className={`text-xs ml-auto ${
+                                                    (nameValue?.length ?? 0) >= 100
+                                                        ? 'text-destructive'
+                                                        : (nameValue?.length ?? 0) >= 85
+                                                        ? 'text-yellow-500'
+                                                        : 'text-muted-foreground'
+                                                }`}>
+                                                    {nameValue?.length ?? 0}/100
+                                                </p>
+                                            </div>
                                         </FormItem>
                                     )}
                                 />
 
-                                {/* ── Designation ───────────────────────────── */}
+                                {/* Designation */}
                                 <FormField
                                     control={form.control}
                                     name="designation"
@@ -177,12 +189,23 @@ const CreateTestimonial = () => {
                                             <FormControl>
                                                 <Input type="text" className="w-full" {...field} />
                                             </FormControl>
-                                            <FormMessage />
+                                            <div className="flex items-center justify-between mt-1">
+                                                <FormMessage />
+                                                <p className={`text-xs ml-auto ${
+                                                    (designationValue?.length ?? 0) >= 400
+                                                        ? 'text-destructive'
+                                                        : (designationValue?.length ?? 0) >= 360
+                                                        ? 'text-yellow-500'
+                                                        : 'text-muted-foreground'
+                                                }`}>
+                                                    {designationValue?.length ?? 0}/400
+                                                </p>
+                                            </div>
                                         </FormItem>
                                     )}
                                 />
 
-                                {/* ── Content ───────────────────────────────── */}
+                                {/* Content */}
                                 <FormField
                                     control={form.control}
                                     name="content"
@@ -197,7 +220,7 @@ const CreateTestimonial = () => {
                                     )}
                                 />
 
-                                {/* ── Status toggle ─────────────────────────── */}
+                                {/* Status */}
                                 <FormField
                                     control={form.control}
                                     name="isActive"
@@ -222,7 +245,7 @@ const CreateTestimonial = () => {
                                     )}
                                 />
 
-                                {/* ── Profile Image ─────────────────────────── */}
+                                {/* Profile Image */}
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between">
                                         <p className="text-sm font-medium">
@@ -232,7 +255,6 @@ const CreateTestimonial = () => {
                                         <span className="text-xs text-muted-foreground">80 × 80px recommended</span>
                                     </div>
 
-                                    {/* Upload box — always visible */}
                                     <div
                                         onClick={() => imageInputRef.current?.click()}
                                         className="flex h-12 w-full cursor-pointer items-center gap-3 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/20 px-4 hover:border-muted-foreground/60 hover:bg-muted/40 transition-all"
@@ -242,7 +264,6 @@ const CreateTestimonial = () => {
                                         <span className="ml-auto text-xs text-muted-foreground">JPEG, PNG, WEBP • 2MB</span>
                                     </div>
 
-                                    {/* Preview with red X — shown below box */}
                                     {imagePreview && (
                                         <div className="relative inline-block">
                                             <img
@@ -274,14 +295,10 @@ const CreateTestimonial = () => {
 
                         <CardFooter className="flex justify-end gap-4 border-t pt-6">
                             <Link to="/dashboard/testimonials">
-                                <Button variant="outline" type="button">
-                                    Cancel
-                                </Button>
+                                <Button variant="outline" type="button">Cancel</Button>
                             </Link>
                             <Button variant="theme" type="submit" disabled={mutation.isPending}>
-                                {mutation.isPending && (
-                                    <LoaderCircle className="animate-spin mr-2 h-4 w-4" />
-                                )}
+                                {mutation.isPending && <LoaderCircle className="animate-spin mr-2 h-4 w-4" />}
                                 Submit
                             </Button>
                         </CardFooter>

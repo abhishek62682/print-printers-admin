@@ -1,93 +1,97 @@
 import { BookOpen, Inbox, Star, TrendingUp } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import {
-  Card,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { StatsData } from '@/config/api/dashboard.api';
 
-// ── Single stat card ───────────────────────────────────────────────────────
-const StatCard = ({
-  title,
-  value,
-  subLabel,
-  subValue,
-  icon: Icon,
-  badgeLabel,
-}: {
-  title:      string;
-  value:      number;
-  subLabel:   string;
-  subValue:   string;
-  icon:       React.ElementType;
-  badgeLabel: string;
-}) => (
-  <Card>
-    <CardHeader>
-      <div className="flex items-start justify-between gap-3 mb-2">
-        <CardDescription>{title}</CardDescription>
-        <Badge variant="outline" className="gap-1 shrink-0">
-          <Icon className="h-3.5 w-3.5" />
-          {badgeLabel}
-        </Badge>
-      </div>
-      <CardTitle className="text-3xl font-semibold">{value}</CardTitle>
-    </CardHeader>
-    <CardFooter className="flex-col items-start gap-2 text-sm">
-      <div className="flex gap-2 font-medium">
-        <Icon className="h-4 w-4" />
-        {subLabel}
-      </div>
-      <div className="text-muted-foreground">{subValue}</div>
-    </CardFooter>
-  </Card>
-);
-
-// ── Section Cards ──────────────────────────────────────────────────────────
 export function SectionCards({ data }: { data: StatsData }) {
-  const cards = [
-    {
-      title:      'Total Blogs',
-      value:      data.blogs.total,
-      icon:       BookOpen,
-      badgeLabel: `${data.blogs.active} active`,
-      subLabel:   `${data.blogs.active} visible on site`,
-      subValue:   `${data.blogs.inactive} hidden`,
-    },
-    {
-      title:      'Total Enquiries',
-      value:      data.enquiries.total,
-      icon:       Inbox,
-      badgeLabel: `${data.enquiries.new} new`,
-      subLabel:   `${data.enquiries.new} unread enquiries`,
-      subValue:   `${data.enquiries.converted} converted so far`,
-    },
-    {
-      title:      'Testimonials',
-      value:      data.testimonials.total,
-      icon:       Star,
-      badgeLabel: `${data.testimonials.active} active`,
-      subLabel:   `${data.testimonials.active} visible on site`,
-      subValue:   `${data.testimonials.inactive} hidden`,
-    },
-    {
-      title:      'Enquiry Pipeline',
-      value:      data.enquiries.quoted + data.enquiries.contacted,
-      icon:       TrendingUp,
-      badgeLabel: `${data.enquiries.quoted} quoted`,
-      subLabel:   `${data.enquiries.contacted} being contacted`,
-      subValue:   `${data.enquiries.closed} closed`,
-    },
-  ];
-
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-      {cards.map((card) => (
-        <StatCard key={card.title} {...card} />
-      ))}
+
+      {/* Blogs */}
+      <Card className="border-slate-200">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="text-sm font-medium text-slate-600">Total Blogs</CardTitle>
+          <BookOpen className="h-4 w-4 text-slate-400" />
+        </CardHeader>
+        <CardContent>
+          <p className="text-3xl font-bold text-slate-800">{data.blogs.total}</p>
+          <div className="mt-3 flex items-center gap-3 text-xs text-slate-500">
+           <span className="flex items-center gap-1">
+  <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+  {data.blogs.active} published
+</span>
+<span className="flex items-center gap-1">
+  <span className="inline-block h-2 w-2 rounded-full bg-slate-300" />
+  {data.blogs.inactive} draft
+</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Enquiries */}
+      <Card className="border-slate-200">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="text-sm font-medium text-slate-600">Total Enquiries</CardTitle>
+          <Inbox className="h-4 w-4 text-slate-400" />
+        </CardHeader>
+        <CardContent>
+          <p className="text-3xl font-bold text-slate-800">{data.enquiries.total}</p>
+          <div className="mt-3 flex items-center gap-3 text-xs text-slate-500">
+            <span className="flex items-center gap-1">
+              <span className="inline-block h-2 w-2 rounded-full bg-blue-500" />
+              {data.enquiries.new} new
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+              {data.enquiries.converted} converted
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Testimonials */}
+      <Card className="border-slate-200">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="text-sm font-medium text-slate-600">Testimonials</CardTitle>
+          <Star className="h-4 w-4 text-slate-400" />
+        </CardHeader>
+        <CardContent>
+          <p className="text-3xl font-bold text-slate-800">{data.testimonials.total}</p>
+          <div className="mt-3 flex items-center gap-3 text-xs text-slate-500">
+           <span className="flex items-center gap-1">
+  <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+  {data.testimonials.active} published
+</span>
+<span className="flex items-center gap-1">
+  <span className="inline-block h-2 w-2 rounded-full bg-slate-300" />
+  {data.testimonials.inactive} draft
+</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Pipeline */}
+      <Card className="border-slate-200">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="text-sm font-medium text-slate-600">Enquiry Pipeline</CardTitle>
+          <TrendingUp className="h-4 w-4 text-slate-400" />
+        </CardHeader>
+        <CardContent>
+          <p className="text-3xl font-bold text-slate-800">
+            {data.enquiries.contacted + data.enquiries.quoted}
+          </p>
+          <div className="mt-3 flex items-center gap-3 text-xs text-slate-500">
+            <span className="flex items-center gap-1">
+              <span className="inline-block h-2 w-2 rounded-full bg-amber-400" />
+              {data.enquiries.contacted} contacted
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block h-2 w-2 rounded-full bg-purple-500" />
+              {data.enquiries.quoted} quoted
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+
     </div>
   );
 }

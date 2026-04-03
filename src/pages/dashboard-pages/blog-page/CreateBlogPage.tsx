@@ -10,7 +10,7 @@ import {
     BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { Button } from '@/components/ui/button';
-import JoditEditor from "jodit-react";
+import JoditEditor from 'jodit-react';
 import {
     Card,
     CardContent,
@@ -39,9 +39,11 @@ import { useNavigate } from 'react-router-dom';
 import { useState, useRef } from 'react';
 import { toast } from 'sonner';
 import type { KeyboardEvent, ChangeEvent } from 'react';
+import type { ApiAxiosError } from '@/types/error';
 
 const formSchema = z.object({
     title: z.string().min(2, { message: 'Title must be at least 2 characters.' }),
+    authorName: z.string().min(2, { message: 'Author name must be at least 2 characters.' }).optional(),
     content: z.string().min(10, { message: 'Content must be at least 10 characters.' }),
     excerpt: z.string().max(300, { message: 'Excerpt cannot exceed 300 characters.' }).optional(),
     coverImageAlt: z.string().optional(),
@@ -51,6 +53,7 @@ const formSchema = z.object({
     seoCanonicalUrl: z.string().url({ message: 'Must be a valid URL' }).optional().or(z.literal('')),
     isActive: z.boolean(),
 });
+
 
 type FormValues = z.infer<typeof formSchema>;
 
@@ -82,7 +85,7 @@ const ImageUploadBox = ({
             >
                 <ImagePlus className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <span className="text-sm text-muted-foreground">Click to upload image</span>
-                <span className="ml-auto text-xs text-muted-foreground">JPEG, PNG, WEBP • 2MB</span>
+                <span className="ml-auto text-xs text-muted-foreground">JPEG, PNG, WEBP • 6MB</span>
             </div>
 
             {preview && (
@@ -114,37 +117,42 @@ const ImageUploadBox = ({
 };
 
 const CreateBlog = () => {
-    const navigate = useNavigate();
+    const navigate    = useNavigate();
     const queryClient = useQueryClient();
 
-    const [tags, setTags] = useState<string[]>([]);
-    const [seoKeywords, setSeoKeywords] = useState<string[]>([]);
-    const [tagInput, setTagInput] = useState('');
-    const [keywordInput, setKeywordInput] = useState('');
-    const [coverPreview, setCoverPreview] = useState<string | null>(null);
+    const [tags, setTags]                   = useState<string[]>([]);
+    const [seoKeywords, setSeoKeywords]     = useState<string[]>([]);
+    const [tagInput, setTagInput]           = useState('');
+    const [keywordInput, setKeywordInput]   = useState('');
+    const [coverPreview, setCoverPreview]   = useState<string | null>(null);
     const [bannerPreview, setBannerPreview] = useState<string | null>(null);
-    const [coverFile, setCoverFile] = useState<File | null>(null);
-    const [bannerFile, setBannerFile] = useState<File | null>(null);
+    const [coverFile, setCoverFile]         = useState<File | null>(null);
+    const [bannerFile, setBannerFile]       = useState<File | null>(null);
 
-    const coverInputRef = useRef<HTMLInputElement | null>(null);
+    const coverInputRef  = useRef<HTMLInputElement | null>(null);
     const bannerInputRef = useRef<HTMLInputElement | null>(null);
 
     const form = useForm<FormValues>({
         resolver: zodResolver(formSchema),
         defaultValues: {
-            title: '',
-            content: '',
-            excerpt: '',
-            coverImageAlt: '',
-            bannerImageAlt: '',
-            seoMetaTitle: '',
+            title:              '',
+            authorName:         '',
+            content:            '',
+            excerpt:            '',
+            coverImageAlt:      '',
+            bannerImageAlt:     '',
+            seoMetaTitle:       '',
             seoMetaDescription: '',
-            seoCanonicalUrl: '',
-            isActive: true,
+            seoCanonicalUrl:    '',
+            isActive:           true,
         },
     });
 
-    const isActiveValue = form.watch('isActive');
+    const isActiveValue     = form.watch('isActive');
+    const titleValue        = form.watch('title');
+    const excerptValue      = form.watch('excerpt');
+    const seoMetaTitleValue = form.watch('seoMetaTitle');
+    const seoMetaDescValue  = form.watch('seoMetaDescription');
 
     const mutation = useMutation({
         mutationFn: createBlog,
@@ -155,9 +163,21 @@ const CreateBlog = () => {
             });
             navigate('/dashboard/blogs');
         },
-        onError: () => {
+        onError: (error: ApiAxiosError) => {
+            const fieldErrors = error?.response?.data?.fieldErrors;
+
+            if (fieldErrors) {
+                Object.entries(fieldErrors).forEach(([field, errors]) => {
+                    form.setError(field as keyof FormValues, {
+                        type:    errors[0]?.type    ?? 'server',
+                        message: errors[0]?.message ?? 'Invalid value',
+                    });
+                });
+            }
+
             toast.error('Failed to create blog', {
-                description: 'Something went wrong. Please try again.',
+                description:
+                    error?.response?.data?.message ?? 'Something went wrong. Please try again.',
             });
         },
     });
@@ -198,40 +218,45 @@ const CreateBlog = () => {
 
     function onSubmit(values: FormValues) {
         const formData = new FormData();
-        formData.append('title', values?.title ?? '');
-        formData.append('content', values?.content ?? '');
-        formData.append('isActive', String(values?.isActive ?? true));
-        
-        if (values?.excerpt) formData.append('excerpt', values.excerpt);
-        if (values?.coverImageAlt) formData.append('coverImageAlt', values.coverImageAlt);
+        formData.append('title',      values?.title      ?? '');
+        formData.append('authorName', values?.authorName ?? '');
+        formData.append('content',    values?.content    ?? '');
+        formData.append('isActive',   String(values?.isActive ?? true));
+
+        if (values?.excerpt)        formData.append('excerpt',        values.excerpt);
+        if (values?.coverImageAlt)  formData.append('coverImageAlt',  values.coverImageAlt);
         if (values?.bannerImageAlt) formData.append('bannerImageAlt', values.bannerImageAlt);
-        
+
         if ((tags?.length ?? 0) > 0) formData.append('tags', JSON.stringify(tags));
-        
-        if ((seoKeywords?.length ?? 0) > 0 || values?.seoMetaTitle || values?.seoMetaDescription || values?.seoCanonicalUrl) {
-            const seoObj = {
-                metaTitle: values?.seoMetaTitle ?? '',
+
+        if (
+            (seoKeywords?.length ?? 0) > 0 ||
+            values?.seoMetaTitle ||
+            values?.seoMetaDescription ||
+            values?.seoCanonicalUrl
+        ) {
+            formData.append('seo', JSON.stringify({
+                metaTitle:       values?.seoMetaTitle       ?? '',
                 metaDescription: values?.seoMetaDescription ?? '',
-                metaKeywords: seoKeywords ?? [],
-                canonicalUrl: values?.seoCanonicalUrl ?? '',
-            };
-            formData.append('seo', JSON.stringify(seoObj));
+                metaKeywords:    seoKeywords                ?? [],
+                canonicalUrl:    values?.seoCanonicalUrl    ?? '',
+            }));
         }
-        
-        if (coverFile) formData.append('coverImage', coverFile);
+
+        if (coverFile)  formData.append('coverImage',  coverFile);
         if (bannerFile) formData.append('bannerImage', bannerFile);
-        
+
         mutation.mutate(formData);
     }
 
     return (
         <section>
             <Form {...form}>
-               <form onSubmit={form.handleSubmit(onSubmit, () => {
-  toast.error("Please fix the errors", {
-    description: "Fill in all required fields correctly before submitting.",
-  });
-})}>
+                <form onSubmit={form.handleSubmit(onSubmit, () => {
+                    toast.error('Please fix the errors', {
+                        description: 'Fill in all required fields correctly before submitting.',
+                    });
+                })}>
                     <Breadcrumb>
                         <BreadcrumbList>
                             <BreadcrumbItem>
@@ -269,6 +294,32 @@ const CreateBlog = () => {
                                             <FormControl>
                                                 <Input type="text" className="w-full" {...field} />
                                             </FormControl>
+                                            <div className="flex items-center justify-between mt-1">
+                                                <FormMessage />
+                                                <p className={`text-xs ml-auto ${
+                                                    (titleValue?.length ?? 0) >= 200
+                                                        ? 'text-destructive'
+                                                        : (titleValue?.length ?? 0) >= 180
+                                                        ? 'text-yellow-500'
+                                                        : 'text-muted-foreground'
+                                                }`}>
+                                                    {titleValue?.length ?? 0}/200
+                                                </p>
+                                            </div>
+                                        </FormItem>
+                                    )}
+                                />
+
+                                {/* Author Name */}
+                                <FormField
+                                    control={form.control}
+                                    name="authorName"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Author Name </FormLabel>
+                                            <FormControl>
+                                                <Input type="text" placeholder="e.g. John Doe" className="w-full" {...field} />
+                                            </FormControl>
                                             <FormMessage />
                                         </FormItem>
                                     )}
@@ -284,7 +335,8 @@ const CreateBlog = () => {
                                             <FormControl>
                                                <JoditEditor
   value={field.value}
-  onChange={(newContent) => field.onChange(newContent)}  
+ 
+  onChange={(newContent) => field.onChange(newContent)}
   onBlur={(newContent) => field.onChange(newContent)}
 />
                                             </FormControl>
@@ -308,10 +360,18 @@ const CreateBlog = () => {
                                                     {...field}
                                                 />
                                             </FormControl>
-                                            <p className="text-xs text-muted-foreground mt-1">
-                                                {field.value?.length ?? 0}/300
-                                            </p>
-                                            <FormMessage />
+                                            <div className="flex items-center justify-between mt-1">
+                                                <FormMessage />
+                                                <p className={`text-xs ml-auto ${
+                                                    (excerptValue?.length ?? 0) >= 300
+                                                        ? 'text-destructive'
+                                                        : (excerptValue?.length ?? 0) >= 270
+                                                        ? 'text-yellow-500'
+                                                        : 'text-muted-foreground'
+                                                }`}>
+                                                    {excerptValue?.length ?? 0}/300
+                                                </p>
+                                            </div>
                                         </FormItem>
                                     )}
                                 />
@@ -364,15 +424,129 @@ const CreateBlog = () => {
                                                 </p>
                                             </div>
                                             <FormControl>
-<Switch
-  className={isActiveValue ? 'bg-col-blue' : 'bg-gray-300'}  // 👈 match testimonial
-  checked={field.value}
-  onCheckedChange={field.onChange}
-/>
+                                                <Switch
+                                                    className={isActiveValue ? 'bg-[#31A2FF]!' : 'bg-gray-300'}
+                                                    checked={field.value}
+                                                    onCheckedChange={field.onChange}
+                                                />
                                             </FormControl>
                                         </FormItem>
                                     )}
                                 />
+
+                                {/* SEO Section */}
+                                <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
+                                    <h3 className="font-semibold text-sm">SEO Settings (Optional)</h3>
+
+                                    {/* Meta Title */}
+                                    <FormField
+                                        control={form.control}
+                                        name="seoMetaTitle"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-xs">Meta Title</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        type="text"
+                                                        placeholder="SEO title for search engines (max 60 chars)"
+                                                        maxLength={60}
+                                                        {...field}
+                                                    />
+                                                </FormControl>
+                                                <div className="flex items-center justify-between mt-1">
+                                                    <FormMessage />
+                                                    <p className={`text-xs ml-auto ${
+                                                        (seoMetaTitleValue?.length ?? 0) >= 60
+                                                            ? 'text-destructive'
+                                                            : (seoMetaTitleValue?.length ?? 0) >= 50
+                                                            ? 'text-yellow-500'
+                                                            : 'text-muted-foreground'
+                                                    }`}>
+                                                        {seoMetaTitleValue?.length ?? 0}/60
+                                                    </p>
+                                                </div>
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    {/* Meta Description */}
+                                    <FormField
+                                        control={form.control}
+                                        name="seoMetaDescription"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-xs">Meta Description</FormLabel>
+                                                <FormControl>
+                                                    <Textarea
+                                                        placeholder="Description shown in search results (max 160 chars)"
+                                                        className="resize-none h-16"
+                                                        maxLength={160}
+                                                        {...field}
+                                                    />
+                                                </FormControl>
+                                                <div className="flex items-center justify-between mt-1">
+                                                    <FormMessage />
+                                                    <p className={`text-xs ml-auto ${
+                                                        (seoMetaDescValue?.length ?? 0) >= 160
+                                                            ? 'text-destructive'
+                                                            : (seoMetaDescValue?.length ?? 0) >= 140
+                                                            ? 'text-yellow-500'
+                                                            : 'text-muted-foreground'
+                                                    }`}>
+                                                        {seoMetaDescValue?.length ?? 0}/160
+                                                    </p>
+                                                </div>
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    {/* SEO Keywords */}
+                                    <div className="space-y-2">
+                                        <FormLabel className="text-xs">SEO Keywords</FormLabel>
+                                        <Input
+                                            type="text"
+                                            placeholder="e.g. javascript, web development"
+                                            value={keywordInput}
+                                            onChange={(e) => setKeywordInput(e?.target?.value ?? '')}
+                                            onKeyDown={handleKeywordKeyDown}
+                                        />
+                                        {(seoKeywords?.length ?? 0) > 0 && (
+                                            <div className="flex flex-wrap gap-2 pt-1">
+                                                {seoKeywords?.map((keyword) => (
+                                                    <Badge key={keyword} variant="outline" className="flex items-center gap-1 pr-1">
+                                                        {keyword}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setSeoKeywords(seoKeywords?.filter((k) => k !== keyword) ?? [])}
+                                                            className="ml-1 hover:text-destructive transition-colors"
+                                                        >
+                                                            <X className="h-3 w-3" />
+                                                        </button>
+                                                    </Badge>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Canonical URL */}
+                                    <FormField
+                                        control={form.control}
+                                        name="seoCanonicalUrl"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel className="text-xs">Canonical URL</FormLabel>
+                                                <FormControl>
+                                                    <Input
+                                                        type="url"
+                                                        placeholder="https://yourdomain.com/blogs/your-blog"
+                                                        {...field}
+                                                    />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
 
                                 {/* Cover Image */}
                                 <div className="space-y-3">
@@ -440,103 +614,6 @@ const CreateBlog = () => {
                                     />
                                 </div>
 
-                                {/* SEO Section */}
-                                <div className="border rounded-lg p-4 space-y-4 bg-muted/30">
-                                    <h3 className="font-semibold text-sm">SEO Settings (Optional)</h3>
-
-                                    {/* Meta Title */}
-                                    <FormField
-                                        control={form.control}
-                                        name="seoMetaTitle"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs">Meta Title</FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        type="text"
-                                                        placeholder="SEO title for search engines (max 60 chars)"
-                                                        maxLength={60}
-                                                        {...field}
-                                                    />
-                                                </FormControl>
-                                                <p className="text-xs text-muted-foreground">
-                                                    {field.value?.length ?? 0}/60
-                                                </p>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-
-                                    {/* Meta Description */}
-                                    <FormField
-                                        control={form.control}
-                                        name="seoMetaDescription"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs">Meta Description</FormLabel>
-                                                <FormControl>
-                                                    <Textarea
-                                                        placeholder="Description shown in search results (max 160 chars)"
-                                                        className="resize-none h-16"
-                                                        maxLength={160}
-                                                        {...field}
-                                                    />
-                                                </FormControl>
-                                                <p className="text-xs text-muted-foreground">
-                                                    {field.value?.length ?? 0}/160
-                                                </p>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-
-                                    {/* SEO Keywords */}
-                                    <div className="space-y-2">
-                                        <FormLabel className="text-xs">SEO Keywords</FormLabel>
-                                        <Input
-                                            type="text"
-                                            placeholder="e.g. javascript, web development"
-                                            value={keywordInput}
-                                            onChange={(e) => setKeywordInput(e?.target?.value ?? '')}
-                                            onKeyDown={handleKeywordKeyDown}
-                                        />
-                                        {(seoKeywords?.length ?? 0) > 0 && (
-                                            <div className="flex flex-wrap gap-2 pt-1">
-                                                {seoKeywords?.map((keyword) => (
-                                                    <Badge key={keyword} variant="outline" className="flex items-center gap-1 pr-1">
-                                                        {keyword}
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setSeoKeywords(seoKeywords?.filter((k) => k !== keyword) ?? [])}
-                                                            className="ml-1 hover:text-destructive transition-colors"
-                                                        >
-                                                            <X className="h-3 w-3" />
-                                                        </button>
-                                                    </Badge>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Canonical URL */}
-                                    <FormField
-                                        control={form.control}
-                                        name="seoCanonicalUrl"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-xs">Canonical URL</FormLabel>
-                                                <FormControl>
-                                                    <Input
-                                                        type="url"
-                                                        placeholder="https://yourdomain.com/blogs/your-blog"
-                                                        {...field}
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                </div>
                             </div>
                         </CardContent>
 

@@ -22,13 +22,50 @@ export interface TestimonialStats {
 }
 
 export interface RecentEnquiry {
-  _id:         string;
-  fullName:    string;
-  companyName: string;
-  email:       string;
-  status:      'new' | 'contacted' | 'quoted' | 'converted' | 'closed';
-  productType: string;
-  createdAt:   string;
+  _id:                  string;
+  fullName:             string;
+  companyName:          string;
+  email:                string;
+  phone:                string;
+  country:              string;
+  stateProvince:        string;
+  city:                 string;
+  zipCode:              string;
+  bookTitle:            string;
+  bookCategory?:        string;
+  trimSize:             string;
+  orientation:          string;
+  proofType:            string;
+  bindingType:          string;
+  bindingNotes?:        string;
+  coverStock:           string;
+  coverInk:             string;
+  coverLamination:      string;
+  boardCalliper?:       string;
+  specialtyFinishes?:   string;
+  dustJacket:           string;
+  dustJacketStock?:     string;
+  dustJacketInk?:       string;
+  dustJacketLamination?: string;
+  dustJacketFinishes?:  string;
+  endsheetStock?:       string;
+  endsheetPrinting?:    string;
+  totalPages:           string;
+  textPaperStock:       string;
+  textInk:              string;
+  quantities:           number[];
+  packingMethod?:       string;
+  shippingMethod:       string;
+  deliveryAddress:      string;
+  deliveryCity:         string;
+  deliveryCountry:      string;
+  deliveryZip:          string;
+  specialInstructions?: string;
+  howDidYouHear?:       string;
+  status:               string;
+  notes?:               string;
+  createdAt:            string;
+  updatedAt:            string;
 }
 
 export interface CreatedBy {
@@ -38,12 +75,12 @@ export interface CreatedBy {
 export interface RecentBlog {
   _id:        string;
   title:      string;
+  authorName:string;
   coverImage?: string | null;
   isActive:   boolean;
   createdAt:  string;
   tags?:      string[];
   createdBy?: CreatedBy;
-  author?:    string;
 }
 
 export interface StatsData {

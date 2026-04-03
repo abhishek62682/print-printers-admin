@@ -22,6 +22,7 @@ export interface Blog {
   coverImageAlt?: string;
   bannerImage?: string | null;
   bannerImageAlt?: string;
+  authorName:string | ""
   tags?: string[];
   seo?: BlogSEO;
   createdBy?: BlogCreatedBy;

@@ -15,14 +15,6 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -41,15 +33,16 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  Sheet,
-  SheetContent,
-} from '@/components/ui/sheet';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { getStats } from '@/config/api/dashboard.api';
 import type { RecentEnquiry, RecentBlog } from '@/config/api/dashboard.api';
-import { deleteEnquiry } from '@/config/api/enquiry.api';
 import { deleteBlog } from '@/config/api/blogs.api';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { SectionCards } from '@/components/section-cards';
@@ -77,24 +70,6 @@ const StatusBadge = ({ status }: { status: string }) => {
   );
 };
 
-// ── Drawer field ────────────────────────────────────────────────────────────
-const Field = ({ label, value }: { label: string; value?: string | null }) => {
-  if (!value) return null;
-  return (
-    <div className="space-y-0.5">
-      <p className="text-[11px] text-slate-400">{label}</p>
-      <p className="text-sm text-slate-700">{value}</p>
-    </div>
-  );
-};
-
-const DrawerSection = ({ title }: { title: string }) => (
-  <div className="pt-2 pb-1">
-    <p className="text-xs text-slate-400">{title}</p>
-    <Separator className="mt-1.5" />
-  </div>
-);
-
 const formatDate = (d?: string | null) => {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
@@ -105,13 +80,6 @@ const HomePage = () => {
   const navigate    = useNavigate();
   const queryClient = useQueryClient();
 
-  // ── Enquiry state ──────────────────────────────────────────────────────
-  const [enqDeleteId,   setEnqDeleteId]   = useState<string | null>(null);
-  const [enqDeleteOpen, setEnqDeleteOpen] = useState(false);
-  const [viewEnquiry,   setViewEnquiry]   = useState<RecentEnquiry | null>(null);
-  const [drawerOpen,    setDrawerOpen]    = useState(false);
-
-  // ── Blog state ─────────────────────────────────────────────────────────
   const [blogDeleteId,   setBlogDeleteId]   = useState<string | null>(null);
   const [blogDeleteOpen, setBlogDeleteOpen] = useState(false);
 
@@ -119,19 +87,6 @@ const HomePage = () => {
     queryKey:  ['stats'],
     queryFn:   () => getStats(),
     staleTime: 30000,
-  });
-
-  // ── Mutations ──────────────────────────────────────────────────────────
-  const deleteEnquiryMutation = useMutation({
-    mutationFn: () => deleteEnquiry(enqDeleteId!),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['stats'] });
-      setEnqDeleteOpen(false);
-      setEnqDeleteId(null);
-      setDrawerOpen(false);
-      toast.success('Enquiry deleted', { description: 'The enquiry has been permanently removed.' });
-    },
-    onError: () => toast.error('Failed to delete enquiry', { description: 'Something went wrong. Please try again.' }),
   });
 
   const deleteBlogMutation = useMutation({
@@ -145,12 +100,6 @@ const HomePage = () => {
     onError: () => toast.error('Failed to delete blog', { description: 'Something went wrong. Please try again.' }),
   });
 
-  const handleViewEnquiry = (enq: RecentEnquiry) => {
-    setViewEnquiry(enq);
-    setDrawerOpen(true);
-  };
-
-  // ─────────────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col">
 
@@ -174,9 +123,14 @@ const HomePage = () => {
 
         {/* ── Recent Enquiries ─────────────────────────────────────────── */}
         <Card className="mt-6 border-slate-200">
-          <CardHeader>
-            <CardTitle className="text-xl font-bold">Recent Enquiries</CardTitle>
-            <CardDescription className="mt-0.5">Latest inquiries from your contact form.</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-xl font-bold">Recent Enquiries</CardTitle>
+              <CardDescription className="mt-0.5">Latest 5 quote requests received.</CardDescription>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => navigate('/dashboard/enquiries')}>
+              View All
+            </Button>
           </CardHeader>
           <CardContent>
             {isLoading && (
@@ -187,85 +141,103 @@ const HomePage = () => {
             {!isLoading && (data?.recentEnquiries?.length ?? 0) === 0 && (
               <p className="py-8 text-center text-sm text-slate-400">No enquiries yet.</p>
             )}
-            {!isLoading && (data?.recentEnquiries?.length ?? 0) > 0 && (
-              <div className="overflow-x-auto border border-slate-200 rounded-lg">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-slate-50 hover:bg-slate-50">
-                      <TableHead className="text-xs font-semibold text-slate-600">Name / Company</TableHead>
-                      <TableHead className="text-xs font-semibold text-slate-600">Email</TableHead>
-                      <TableHead className="text-xs font-semibold text-slate-600">Status</TableHead>
-                      <TableHead className="text-xs font-semibold text-slate-600">Received</TableHead>
-                      <TableHead className="text-xs font-semibold text-slate-600 text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data?.recentEnquiries?.map((enq: RecentEnquiry) => (
-                      <TableRow
-                        key={enq._id}
-                        onDoubleClick={() => handleViewEnquiry(enq)}
-                        className="hover:bg-slate-50 transition-colors border-b border-slate-100 cursor-pointer"
-                      >
-                        <TableCell className="py-3.5">
-                          <div className="flex flex-col gap-0.5">
-                            <p className="text-sm text-slate-700">{enq.fullName ?? '—'}</p>
-                            <p className="text-xs text-slate-400">{enq.companyName ?? '—'}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell className="py-3.5">
-                          <p className="text-sm text-slate-700">{enq.email ?? '—'}</p>
-                        </TableCell>
-                        <TableCell className="py-3.5" onClick={(e) => e.stopPropagation()}>
-                          <StatusBadge status={enq.status} />
-                        </TableCell>
-                        <TableCell className="py-3.5">
-                          <p className="text-sm text-slate-600 whitespace-nowrap">{formatDate(enq.createdAt)}</p>
-                        </TableCell>
-                        <TableCell className="py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-slate-100">
-                                <MoreHorizontal className="h-4 w-4" />
-                                <span className="sr-only">Toggle menu</span>
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-44">
-                              <DropdownMenuLabel className="text-xs font-semibold">Actions</DropdownMenuLabel>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem className="text-sm cursor-pointer" onClick={() => handleViewEnquiry(enq)}>
-                                View Details
-                              </DropdownMenuItem>
-                              <DropdownMenuItem className="text-sm cursor-pointer" onClick={() => navigate('/dashboard/enquiries')}>
-                                Go to Enquiries
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                className="text-red-600 text-sm cursor-pointer"
-                                onSelect={(e) => {
-                                  e.preventDefault();
-                                  setEnqDeleteId(enq._id);
-                                  setTimeout(() => setEnqDeleteOpen(true), 100);
-                                }}
-                              >
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+         {!isLoading && (data?.recentEnquiries?.length ?? 0) > 0 && (
+  <div className="overflow-x-auto border border-slate-200 rounded-lg">
+    <Table>
+      <TableHeader>
+        <TableRow className="bg-slate-50 hover:bg-slate-50">
+          <TableHead className="text-xs font-semibold text-slate-600">Name / Company</TableHead>
+          <TableHead className="text-xs font-semibold text-slate-600">Email & Phone</TableHead>
+          <TableHead className="text-xs font-semibold text-slate-600">Book</TableHead>
+          <TableHead className="text-xs font-semibold text-slate-600">Binding / Pages</TableHead>
+          <TableHead className="text-xs font-semibold text-slate-600">Qty / Shipping</TableHead>
+          <TableHead className="text-xs font-semibold text-slate-600">Delivery</TableHead>
+          <TableHead className="text-xs font-semibold text-slate-600">Status</TableHead>
+          <TableHead className="text-xs font-semibold text-slate-600">Date</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {data?.recentEnquiries?.map((enq: RecentEnquiry) => (
+          <TableRow
+            key={enq._id}
+            className="hover:bg-slate-50 transition-colors border-b border-slate-100"
+          >
+            {/* Name / Company */}
+            <TableCell className="py-3.5">
+              <div className="flex flex-col gap-0.5">
+                <p className="text-sm text-slate-700">{enq.fullName ?? '—'}</p>
+                <p className="text-xs text-slate-400">{enq.companyName ?? '—'}</p>
               </div>
-            )}
+            </TableCell>
+
+            {/* Email & Phone */}
+            <TableCell className="py-3.5">
+              <div className="flex flex-col gap-0.5">
+                <p className="text-sm text-slate-700">{enq.email ?? '—'}</p>
+                <p className="text-xs text-slate-400">{enq.phone ?? '—'}</p>
+              </div>
+            </TableCell>
+
+            {/* Book */}
+            <TableCell className="py-3.5">
+              <div className="flex flex-col gap-0.5">
+                <p className="text-sm text-slate-700">{enq.bookTitle ?? '—'}</p>
+                <p className="text-xs text-slate-400">{enq.bookCategory ?? '—'}</p>
+              </div>
+            </TableCell>
+
+            {/* Binding */}
+            <TableCell className="py-3.5">
+              <div className="flex flex-col gap-0.5">
+                <p className="text-sm text-slate-700">{enq.bindingType ?? '—'}</p>
+                <p className="text-xs text-slate-400">{enq.totalPages ? `${enq.totalPages} pages` : '—'}</p>
+              </div>
+            </TableCell>
+
+            {/* Qty / Shipping */}
+            <TableCell className="py-3.5">
+              <div className="flex flex-col gap-0.5">
+                <p className="text-sm text-slate-700">{enq.quantities?.join(', ') ?? '—'}</p>
+                <p className="text-xs text-slate-400">{enq.shippingMethod ?? '—'}</p>
+              </div>
+            </TableCell>
+
+            {/* Delivery */}
+            <TableCell className="py-3.5">
+              <div className="flex flex-col gap-0.5">
+                <p className="text-sm text-slate-700">{enq.deliveryCountry ?? '—'}</p>
+                <p className="text-xs text-slate-400">{enq.deliveryCity ?? '—'}</p>
+              </div>
+            </TableCell>
+
+            {/* Status */}
+            <TableCell className="py-3.5">
+              <StatusBadge status={enq.status} />
+            </TableCell>
+
+            {/* Date */}
+            <TableCell className="py-3.5 text-sm text-slate-600 whitespace-nowrap">
+              {formatDate(enq.createdAt)}
+            </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  </div>
+)}
           </CardContent>
         </Card>
 
         {/* ── Recent Blogs ─────────────────────────────────────────────── */}
         <Card className="mt-6 border-slate-200">
-          <CardHeader>
-            <CardTitle className="text-xl font-bold">Recent Blogs</CardTitle>
-            <CardDescription className="mt-0.5">Latest blog posts published on your site.</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-xl font-bold">Recent Blogs</CardTitle>
+              <CardDescription className="mt-0.5">Latest blog posts published on your site.</CardDescription>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => navigate('/dashboard/blogs')}>
+              View All
+            </Button>
           </CardHeader>
           <CardContent>
             {isLoading && (
@@ -292,10 +264,8 @@ const HomePage = () => {
                   </TableHeader>
                   <TableBody>
                     {data?.recentBlogs?.map((blog: RecentBlog) => (
-                      <TableRow
-                        key={blog._id}
-                        className="hover:bg-slate-50 transition-colors border-b border-slate-100"
-                      >
+                      <TableRow key={blog._id} className="hover:bg-slate-50 transition-colors border-b border-slate-100">
+                        {/* Cover */}
                         <TableCell className="py-3">
                           {blog?.coverImage ? (
                             <img
@@ -309,17 +279,19 @@ const HomePage = () => {
                             </div>
                           )}
                         </TableCell>
+                        {/* Title */}
                         <TableCell className="py-3 max-w-[200px]">
                           <p className="text-sm text-slate-700 truncate">{blog?.title ?? '—'}</p>
                         </TableCell>
+                        {/* Author */}
                         <TableCell className="py-3">
-                          {/* API returns createdBy as { _id, username } object */}
                           <p className="text-sm text-slate-600">
-                            {typeof blog?.createdBy === 'object' && blog.createdBy !== null
+                            {blog?.authorName || (typeof blog?.createdBy === 'object' && blog.createdBy !== null
                               ? blog.createdBy.username
-                              : (blog?.author ?? '—')}
+                              : '—')}
                           </p>
                         </TableCell>
+                        {/* Tags */}
                         <TableCell className="py-3 hidden md:table-cell">
                           {(blog?.tags?.length ?? 0) > 0 ? (
                             <div className="flex flex-wrap gap-1">
@@ -334,6 +306,7 @@ const HomePage = () => {
                             <span className="text-xs text-slate-400">No tags</span>
                           )}
                         </TableCell>
+                        {/* Status */}
                         <TableCell className="py-3">
                           <span className={`inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-medium ${
                             blog?.isActive
@@ -343,15 +316,16 @@ const HomePage = () => {
                             {blog?.isActive ? 'Active' : 'Inactive'}
                           </span>
                         </TableCell>
+                        {/* Created */}
                         <TableCell className="py-3 hidden md:table-cell">
                           <p className="text-sm text-slate-600 whitespace-nowrap">{formatDate(blog?.createdAt)}</p>
                         </TableCell>
+                        {/* Actions */}
                         <TableCell className="py-3 text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-slate-100">
                                 <MoreHorizontal className="h-4 w-4" />
-                                <span className="sr-only">Toggle menu</span>
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-44">
@@ -363,11 +337,7 @@ const HomePage = () => {
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 className="text-red-600 text-sm cursor-pointer"
-                                onSelect={(e) => {
-                                  e.preventDefault();
-                                  setBlogDeleteId(blog._id);
-                                  setTimeout(() => setBlogDeleteOpen(true), 100);
-                                }}
+                                onSelect={(e) => { e.preventDefault(); setBlogDeleteId(blog._id); setTimeout(() => setBlogDeleteOpen(true), 100); }}
                               >
                                 Delete
                               </DropdownMenuItem>
@@ -384,90 +354,6 @@ const HomePage = () => {
         </Card>
 
       </div>
-
-      {/* ── Enquiry Detail Drawer ──────────────────────────────────────────── */}
-      <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col gap-0 overflow-hidden">
-          {viewEnquiry && (
-            <>
-              {/* Header */}
-              <div className="flex items-start justify-between px-6 py-5 border-b border-slate-100 shrink-0">
-                <div className="flex flex-col gap-0.5">
-                  <StatusBadge status={viewEnquiry.status} />
-                  <p className="text-sm text-slate-700 mt-1">{viewEnquiry.fullName}</p>
-                  {viewEnquiry.companyName && (
-                    <p className="text-xs text-slate-400">{viewEnquiry.companyName}</p>
-                  )}
-                </div>
-                <p className="text-xs text-slate-400 whitespace-nowrap pt-1 pr-8">
-                  {formatDate(viewEnquiry.createdAt)}
-                </p>
-              </div>
-
-              {/* Body */}
-              <ScrollArea className="flex-1 min-h-0">
-                <div className="px-6 py-5 space-y-6">
-                  <div>
-                    <DrawerSection title="Contact" />
-                    <div className="grid grid-cols-2 gap-x-8 gap-y-4 mt-3">
-                      <Field label="Name"    value={viewEnquiry.fullName} />
-                      <Field label="Company" value={viewEnquiry.companyName} />
-                      <Field label="Email"   value={viewEnquiry.email} />
-                    </div>
-                  </div>
-                  <div>
-                    <DrawerSection title="Enquiry" />
-                    <div className="grid grid-cols-2 gap-x-8 gap-y-4 mt-3">
-                      <Field label="Status"  value={STATUS_CONFIG[viewEnquiry.status]?.label ?? viewEnquiry.status} />
-                      <Field label="Received" value={formatDate(viewEnquiry.createdAt)} />
-                    </div>
-                  </div>
-                  <div className="h-4" />
-                </div>
-              </ScrollArea>
-
-              {/* Footer */}
-              <div className="border-t border-slate-100 px-6 py-4 flex items-center justify-end gap-2 shrink-0 bg-white">
-                <Button variant="outline" size="sm" onClick={() => navigate('/dashboard/enquiries')}>
-                  Go to Enquiries
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => { setEnqDeleteId(viewEnquiry._id); setTimeout(() => setEnqDeleteOpen(true), 100); }}
-                >
-                  Delete
-                </Button>
-              </div>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
-
-      {/* ── Enquiry Delete Dialog ──────────────────────────────────────────── */}
-      <AlertDialog
-        open={enqDeleteOpen}
-        onOpenChange={(open) => { setEnqDeleteOpen(open); if (!open) setEnqDeleteId(null); }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Enquiry?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This enquiry will be permanently deleted.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteEnquiryMutation.isPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteEnquiryMutation.mutate()}
-              disabled={deleteEnquiryMutation.isPending}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              {deleteEnquiryMutation.isPending ? 'Deleting...' : 'Delete'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* ── Blog Delete Dialog ─────────────────────────────────────────────── */}
       <AlertDialog

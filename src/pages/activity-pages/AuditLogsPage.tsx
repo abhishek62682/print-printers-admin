@@ -287,14 +287,16 @@ const AllAuditLogsPage = () => {
                                                 </TableCell>
 
                                                 <TableCell>
-    <div className="max-w-sm">
-        <p className="text-sm font-medium break-words">
+   <TableCell className="max-w-[200px]">
+    <div>
+        <p className="text-sm font-medium truncate" title={log?.targetLabel || '—'}>
             {log?.targetLabel || '—'}
         </p>
-        <p className="text-xs text-muted-foreground break-words">
+        <p className="text-xs text-muted-foreground truncate" title={log?.message || '—'}>
             {log?.message || '—'}
         </p>
     </div>
+</TableCell>
 </TableCell>
 
                                                 <TableCell>
@@ -337,20 +339,17 @@ const AllAuditLogsPage = () => {
                         </div>
                     )}
 
-                    {!isLoading && !isError && (logs?.length ?? 0) === 0 && (
-                        <div className="py-16 text-center">
-                            <div className="flex justify-center mb-4">
-                                <div className="p-3 rounded-full bg-muted">
-                                    <LoaderCircle className="h-6 w-6 text-muted-foreground" />
-                                </div>
-                            </div>
-                            <p className="text-sm text-muted-foreground">
-                                {search || action !== 'all' || status !== 'all'
-                                    ? 'No logs found. Try adjusting your filters.'
-                                    : 'No audit logs yet.'}
-                            </p>
-                        </div>
-                    )}
+                   {!isLoading && !isError && (logs?.length ?? 0) === 0 && (
+    <div className="py-16 text-center">
+       
+        
+        <p className="text-sm text-muted-foreground">
+            {search || action !== 'all' || status !== 'all'
+                ? 'No logs found. Try adjusting your filters.'
+                : 'No audit logs yet.'}
+        </p>
+    </div>
+)}
                 </CardContent>
 
                 <CardFooter className="flex items-center justify-between border-t pt-6">

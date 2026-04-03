@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { useForm } from 'react-hook-form';
 import { updateTestimonial, getAllTestimonials } from '@/config/api/testimonial.api';
 import type { Testimonial } from '@/config/api/testimonial.api';
@@ -37,33 +38,28 @@ import { toast } from 'sonner';
 import { API_BASE_URL } from '@/Utils/constant';
 import { useState, useRef } from 'react';
 import type { ChangeEvent } from 'react';
-import type { AxiosError } from 'axios';
+import type { ApiAxiosError } from '@/types/error';
+
+const Required = () => <span className="text-destructive ml-0.5">*</span>;
 
 const formSchema = z.object({
-    name: z.string().min(2, {
-        message: 'Name must be at least 2 characters.',
-    }),
-    designation: z.string().min(2, {
-        message: 'Designation must be at least 2 characters.',
-    }),
-    content: z.string().min(10, {
-        message: 'Content must be at least 10 characters.',
-    }),
+    name:        z.string().min(2, { message: 'Name must be at least 2 characters.' }).max(100, { message: 'Name cannot exceed 100 characters.' }),
+    designation: z.string().min(2, { message: 'Designation must be at least 2 characters.' }).max(100, { message: 'Designation cannot exceed 100 characters.' }),
+    content:     z.string().min(10, { message: 'Content must be at least 10 characters.' }),
+    isActive:    z.boolean(),
 });
 
-// Required label helper
-const Required = () => <span className="text-destructive ml-0.5">*</span>;
+type FormValues = z.infer<typeof formSchema>;
 
 const UpdateTestimonial = () => {
     const { id }      = useParams<{ id: string }>();
     const navigate    = useNavigate();
     const queryClient = useQueryClient();
 
-    // ── Image state ────────────────────────────────────────────────────────
-    const [imageFile, setImageFile]         = useState<File | null>(null);
-    const [imagePreview, setImagePreview]   = useState<string | null>(null);
-    const [removeImage, setRemoveImage]     = useState(false);
-    const imageInputRef                     = useRef<HTMLInputElement | null>(null);
+    const [imageFile, setImageFile]       = useState<File | null>(null);
+    const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [removeImage, setRemoveImage]   = useState(false);
+    const imageInputRef                   = useRef<HTMLInputElement | null>(null);
 
     const { data: response, isLoading: isFetching } = useQuery({
         queryKey: ['testimonials'],
@@ -75,34 +71,36 @@ const UpdateTestimonial = () => {
         (t: Testimonial) => t._id === id
     );
 
-    // Existing image from server
     const existingImageUrl = testimonial?.imageUrl
         ? `${API_BASE_URL}/${testimonial.imageUrl}`
         : null;
 
-    // What to show in Avatar: new preview > existing (if not removed) > null
     const avatarSrc = imageFile
         ? (imagePreview ?? undefined)
         : removeImage
             ? undefined
             : (existingImageUrl ?? undefined);
 
-    const form = useForm<z.infer<typeof formSchema>>({
+    const form = useForm<FormValues>({
         resolver: zodResolver(formSchema),
         values: {
             name:        testimonial?.name        ?? '',
             designation: testimonial?.designation ?? '',
             content:     testimonial?.content     ?? '',
+            isActive:    testimonial?.isActive    ?? true,
         },
     });
 
-    // ── Image handlers ─────────────────────────────────────────────────────
+    const isActiveValue    = form.watch('isActive');
+    const nameValue        = form.watch('name');
+    const designationValue = form.watch('designation');
+
     const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
         const file = e?.target?.files?.[0];
         if (file) {
             setImageFile(file);
             setImagePreview(URL.createObjectURL(file));
-            setRemoveImage(false); // picking new image cancels removal
+            setRemoveImage(false);
         }
     };
 
@@ -113,9 +111,6 @@ const UpdateTestimonial = () => {
         if (imageInputRef.current) imageInputRef.current.value = '';
     };
 
-   
-
-    // ── Mutation ───────────────────────────────────────────────────────────
     const mutation = useMutation({
         mutationFn: (formData: FormData) => updateTestimonial(id!, formData),
         onSuccess: () => {
@@ -125,23 +120,32 @@ const UpdateTestimonial = () => {
             });
             navigate('/dashboard/testimonials');
         },
-        onError: (error: AxiosError<{ message: string }>) => {
-            const message = error.response?.data?.message ?? 'Something went wrong. Please try again.';
-            toast.error('Failed to update testimonial', { description: message });
+        onError: (error: ApiAxiosError) => {
+            const fieldErrors = error?.response?.data?.fieldErrors;
+
+            if (fieldErrors) {
+                Object.entries(fieldErrors).forEach(([field, errors]) => {
+                    form.setError(field as keyof FormValues, {
+                        type:    errors[0]?.type    ?? 'server',
+                        message: errors[0]?.message ?? 'Invalid value',
+                    });
+                });
+            }
+
+            toast.error('Failed to update testimonial', {
+                description: error?.response?.data?.message ?? 'Something went wrong. Please try again.',
+            });
         },
     });
 
-    function onSubmit(values: z.infer<typeof formSchema>) {
+    function onSubmit(values: FormValues) {
         const formData = new FormData();
         formData.append('name',        values.name);
         formData.append('designation', values.designation);
         formData.append('content',     values.content);
-        if (imageFile) {
-            formData.append('image', imageFile);
-        }
-        if (removeImage) {
-            formData.append('removeImage', 'true');
-        }
+        formData.append('isActive',    String(values.isActive));
+        if (imageFile)    formData.append('image',       imageFile);
+        if (removeImage)  formData.append('removeImage', 'true');
         mutation.mutate(formData);
     }
 
@@ -173,9 +177,7 @@ const UpdateTestimonial = () => {
                             </BreadcrumbItem>
                             <BreadcrumbSeparator />
                             <BreadcrumbItem>
-                                <BreadcrumbLink href="/dashboard/testimonials">
-                                    Testimonials
-                                </BreadcrumbLink>
+                                <BreadcrumbLink href="/dashboard/testimonials">Testimonials</BreadcrumbLink>
                             </BreadcrumbItem>
                             <BreadcrumbSeparator />
                             <BreadcrumbItem>
@@ -195,7 +197,7 @@ const UpdateTestimonial = () => {
                         <CardContent>
                             <div className="grid gap-6">
 
-                                {/* ── Name ──────────────────────────────────── */}
+                                {/* Name */}
                                 <FormField
                                     control={form.control}
                                     name="name"
@@ -205,12 +207,23 @@ const UpdateTestimonial = () => {
                                             <FormControl>
                                                 <Input type="text" className="w-full" {...field} />
                                             </FormControl>
-                                            <FormMessage />
+                                            <div className="flex items-center justify-between mt-1">
+                                                <FormMessage />
+                                                <p className={`text-xs ml-auto ${
+                                                    (nameValue?.length ?? 0) >= 100
+                                                        ? 'text-destructive'
+                                                        : (nameValue?.length ?? 0) >= 85
+                                                        ? 'text-yellow-500'
+                                                        : 'text-muted-foreground'
+                                                }`}>
+                                                    {nameValue?.length ?? 0}/100
+                                                </p>
+                                            </div>
                                         </FormItem>
                                     )}
                                 />
 
-                                {/* ── Designation ───────────────────────────── */}
+                                {/* Designation */}
                                 <FormField
                                     control={form.control}
                                     name="designation"
@@ -220,12 +233,23 @@ const UpdateTestimonial = () => {
                                             <FormControl>
                                                 <Input type="text" className="w-full" {...field} />
                                             </FormControl>
-                                            <FormMessage />
+                                            <div className="flex items-center justify-between mt-1">
+                                                <FormMessage />
+                                                <p className={`text-xs ml-auto ${
+                                                    (designationValue?.length ?? 0) >= 100
+                                                        ? 'text-destructive'
+                                                        : (designationValue?.length ?? 0) >= 85
+                                                        ? 'text-yellow-500'
+                                                        : 'text-muted-foreground'
+                                                }`}>
+                                                    {designationValue?.length ?? 0}/100
+                                                </p>
+                                            </div>
                                         </FormItem>
                                     )}
                                 />
 
-                                {/* ── Content ───────────────────────────────── */}
+                                {/* Content */}
                                 <FormField
                                     control={form.control}
                                     name="content"
@@ -240,7 +264,32 @@ const UpdateTestimonial = () => {
                                     )}
                                 />
 
-                                {/* ── Profile Image ─────────────────────────── */}
+                                {/* Status */}
+                                <FormField
+                                    control={form.control}
+                                    name="isActive"
+                                    render={({ field }) => (
+                                        <FormItem className="flex items-center justify-between rounded-lg border px-4 py-3">
+                                            <div>
+                                                <FormLabel>Status</FormLabel>
+                                                <p className="text-xs text-muted-foreground mt-0.5">
+                                                    {isActiveValue
+                                                        ? 'This testimonial will be visible on site.'
+                                                        : 'This testimonial will be hidden from site.'}
+                                                </p>
+                                            </div>
+                                            <FormControl>
+                                                <Switch
+                                                    className={isActiveValue ? 'bg-[#31A2FF]!' : 'bg-gray-300'}
+                                                    checked={field.value}
+                                                    onCheckedChange={field.onChange}
+                                                />
+                                            </FormControl>
+                                        </FormItem>
+                                    )}
+                                />
+
+                                {/* Profile Image */}
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between">
                                         <p className="text-sm font-medium">
@@ -250,7 +299,6 @@ const UpdateTestimonial = () => {
                                         <span className="text-xs text-muted-foreground">80 × 80px recommended</span>
                                     </div>
 
-                                    {/* Upload box — always visible */}
                                     <div
                                         onClick={() => imageInputRef.current?.click()}
                                         className="flex h-12 w-full cursor-pointer items-center gap-3 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/20 px-4 hover:border-muted-foreground/60 hover:bg-muted/40 transition-all"
@@ -260,7 +308,6 @@ const UpdateTestimonial = () => {
                                         <span className="ml-auto text-xs text-muted-foreground">JPEG, PNG, WEBP • 2MB</span>
                                     </div>
 
-                                    {/* Preview with red X — shown below box */}
                                     {avatarSrc && (
                                         <div className="relative inline-block">
                                             <img
@@ -305,9 +352,7 @@ const UpdateTestimonial = () => {
                                 Cancel
                             </Button>
                             <Button type="submit" variant="theme" disabled={mutation.isPending}>
-                                {mutation.isPending && (
-                                    <LoaderCircle className="animate-spin mr-2 h-4 w-4" />
-                                )}
+                                {mutation.isPending && <LoaderCircle className="animate-spin mr-2 h-4 w-4" />}
                                 Update
                             </Button>
                         </CardFooter>

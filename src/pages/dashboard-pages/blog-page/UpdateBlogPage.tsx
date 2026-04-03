@@ -14,10 +14,10 @@ import JoditEditor from 'jodit-react';
 import {
     Card,
     CardContent,
-    CardDescription,
     CardFooter,
     CardHeader,
     CardTitle,
+    CardDescription,
 } from '@/components/ui/card';
 import {
     Form,
@@ -41,9 +41,11 @@ import { useState, useRef, useEffect } from 'react';
 import { toast } from 'sonner';
 import type { KeyboardEvent, ChangeEvent } from 'react';
 import { API_BASE_URL } from '@/Utils/constant';
+import type { ApiAxiosError } from '@/types/error';
 
 const formSchema = z.object({
     title: z.string().min(2, { message: 'Title must be at least 2 characters.' }),
+   authorName: z.string().min(2, { message: 'Author name must be at least 2 characters.' }).optional(),
     content: z.string().min(10, { message: 'Content must be at least 10 characters.' }),
     excerpt: z.string().max(300, { message: 'Excerpt cannot exceed 300 characters.' }).optional(),
     coverImageAlt: z.string().optional(),
@@ -84,7 +86,7 @@ const ImageUploadBox = ({
             >
                 <ImagePlus className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <span className="text-sm text-muted-foreground">Click to upload image</span>
-                <span className="ml-auto text-xs text-muted-foreground">JPEG, PNG, WEBP • 2MB</span>
+                <span className="ml-auto text-xs text-muted-foreground">JPEG, PNG, WEBP • 6MB</span>
             </div>
 
             {preview && (
@@ -116,20 +118,20 @@ const ImageUploadBox = ({
 };
 
 const UpdateBlogPage = () => {
-    const { id } = useParams<{ id: string }>();
-    const navigate = useNavigate();
-    const queryClient = useQueryClient();
+    const { id }       = useParams<{ id: string }>();
+    const navigate     = useNavigate();
+    const queryClient  = useQueryClient();
 
-    const [tags, setTags] = useState<string[]>([]);
-    const [seoKeywords, setSeoKeywords] = useState<string[]>([]);
-    const [tagInput, setTagInput] = useState('');
-    const [keywordInput, setKeywordInput] = useState('');
-    const [coverPreview, setCoverPreview] = useState<string | null>(null);
+    const [tags, setTags]                   = useState<string[]>([]);
+    const [seoKeywords, setSeoKeywords]     = useState<string[]>([]);
+    const [tagInput, setTagInput]           = useState('');
+    const [keywordInput, setKeywordInput]   = useState('');
+    const [coverPreview, setCoverPreview]   = useState<string | null>(null);
     const [bannerPreview, setBannerPreview] = useState<string | null>(null);
-    const [coverFile, setCoverFile] = useState<File | null>(null);
-    const [bannerFile, setBannerFile] = useState<File | null>(null);
+    const [coverFile, setCoverFile]         = useState<File | null>(null);
+    const [bannerFile, setBannerFile]       = useState<File | null>(null);
 
-    const coverInputRef = useRef<HTMLInputElement | null>(null);
+    const coverInputRef  = useRef<HTMLInputElement | null>(null);
     const bannerInputRef = useRef<HTMLInputElement | null>(null);
 
     const { data: blogs, isLoading: isFetching } = useQuery({
@@ -143,36 +145,42 @@ const UpdateBlogPage = () => {
     const form = useForm<FormValues>({
         resolver: zodResolver(formSchema),
         defaultValues: {
-            title: '',
-            content: '',
-            excerpt: '',
-            coverImageAlt: '',
-            bannerImageAlt: '',
-            seoMetaTitle: '',
+            title:              '',
+            authorName:         '',
+            content:            '',
+            excerpt:            '',
+            coverImageAlt:      '',
+            bannerImageAlt:     '',
+            seoMetaTitle:       '',
             seoMetaDescription: '',
-            seoCanonicalUrl: '',
-            isActive: true,
+            seoCanonicalUrl:    '',
+            isActive:           true,
         },
     });
 
-    const isActiveValue = form.watch('isActive');
+    const isActiveValue     = form.watch('isActive');
+    const titleValue        = form.watch('title');
+    const excerptValue      = form.watch('excerpt');
+    const seoMetaTitleValue = form.watch('seoMetaTitle');
+    const seoMetaDescValue  = form.watch('seoMetaDescription');
 
     useEffect(() => {
         if (blog) {
             form.reset({
-                title: blog?.title ?? '',
-                content: blog?.content ?? '',
-                excerpt: blog?.excerpt ?? '',
-                coverImageAlt: blog?.coverImageAlt ?? '',
-                bannerImageAlt: blog?.bannerImageAlt ?? '',
-                seoMetaTitle: blog?.seo?.metaTitle ?? '',
+                title:              blog?.title                ?? '',
+                authorName:         blog?.authorName           ?? '',
+                content:            blog?.content              ?? '',
+                excerpt:            blog?.excerpt              ?? '',
+                coverImageAlt:      blog?.coverImageAlt        ?? '',
+                bannerImageAlt:     blog?.bannerImageAlt       ?? '',
+                seoMetaTitle:       blog?.seo?.metaTitle       ?? '',
                 seoMetaDescription: blog?.seo?.metaDescription ?? '',
-                seoCanonicalUrl: blog?.seo?.canonicalUrl ?? '',
-                isActive: blog?.isActive ?? true,
+                seoCanonicalUrl:    blog?.seo?.canonicalUrl    ?? '',
+                isActive:           blog?.isActive             ?? true,
             });
             setTags(blog?.tags ?? []);
             setSeoKeywords(blog?.seo?.metaKeywords ?? []);
-            if (blog?.coverImage) setCoverPreview(`${API_BASE_URL}/${blog.coverImage}`);
+            if (blog?.coverImage)  setCoverPreview(`${API_BASE_URL}/${blog.coverImage}`);
             if (blog?.bannerImage) setBannerPreview(`${API_BASE_URL}/${blog.bannerImage}`);
         }
     }, [blog]);
@@ -186,9 +194,21 @@ const UpdateBlogPage = () => {
             });
             navigate('/dashboard/blogs');
         },
-        onError: () => {
+        onError: (error: ApiAxiosError) => {
+            const fieldErrors = error?.response?.data?.fieldErrors;
+
+            if (fieldErrors) {
+                Object.entries(fieldErrors).forEach(([field, errors]) => {
+                    form.setError(field as keyof FormValues, {
+                        type:    errors[0]?.type    ?? 'server',
+                        message: errors[0]?.message ?? 'Invalid value',
+                    });
+                });
+            }
+
             toast.error('Failed to update blog', {
-                description: 'Something went wrong. Please try again.',
+                description:
+                    error?.response?.data?.message ?? 'Something went wrong. Please try again.',
             });
         },
     });
@@ -229,27 +249,32 @@ const UpdateBlogPage = () => {
 
     function onSubmit(values: FormValues) {
         const formData = new FormData();
-        formData.append('title', values?.title ?? '');
-        formData.append('content', values?.content ?? '');
-        formData.append('isActive', String(values?.isActive ?? true));
+        formData.append('title',      values?.title      ?? '');
+        formData.append('authorName', values?.authorName ?? '');
+        formData.append('content',    values?.content    ?? '');
+        formData.append('isActive',   String(values?.isActive ?? true));
 
-        if (values?.excerpt) formData.append('excerpt', values.excerpt);
-        if (values?.coverImageAlt) formData.append('coverImageAlt', values.coverImageAlt);
+        if (values?.excerpt)        formData.append('excerpt',        values.excerpt);
+        if (values?.coverImageAlt)  formData.append('coverImageAlt',  values.coverImageAlt);
         if (values?.bannerImageAlt) formData.append('bannerImageAlt', values.bannerImageAlt);
 
         if ((tags?.length ?? 0) > 0) formData.append('tags', JSON.stringify(tags));
 
-        if ((seoKeywords?.length ?? 0) > 0 || values?.seoMetaTitle || values?.seoMetaDescription || values?.seoCanonicalUrl) {
-            const seoObj = {
-                metaTitle: values?.seoMetaTitle ?? '',
+        if (
+            (seoKeywords?.length ?? 0) > 0 ||
+            values?.seoMetaTitle ||
+            values?.seoMetaDescription ||
+            values?.seoCanonicalUrl
+        ) {
+            formData.append('seo', JSON.stringify({
+                metaTitle:       values?.seoMetaTitle       ?? '',
                 metaDescription: values?.seoMetaDescription ?? '',
-                metaKeywords: seoKeywords ?? [],
-                canonicalUrl: values?.seoCanonicalUrl ?? '',
-            };
-            formData.append('seo', JSON.stringify(seoObj));
+                metaKeywords:    seoKeywords                ?? [],
+                canonicalUrl:    values?.seoCanonicalUrl    ?? '',
+            }));
         }
 
-        if (coverFile) formData.append('coverImage', coverFile);
+        if (coverFile)  formData.append('coverImage',  coverFile);
         if (bannerFile) formData.append('bannerImage', bannerFile);
 
         mutation.mutate(formData);
@@ -313,6 +338,32 @@ const UpdateBlogPage = () => {
                                             <FormControl>
                                                 <Input type="text" className="w-full" {...field} />
                                             </FormControl>
+                                            <div className="flex items-center justify-between mt-1">
+                                                <FormMessage />
+                                                <p className={`text-xs ml-auto ${
+                                                    (titleValue?.length ?? 0) >= 200
+                                                        ? 'text-destructive'
+                                                        : (titleValue?.length ?? 0) >= 180
+                                                        ? 'text-yellow-500'
+                                                        : 'text-muted-foreground'
+                                                }`}>
+                                                    {titleValue?.length ?? 0}/200
+                                                </p>
+                                            </div>
+                                        </FormItem>
+                                    )}
+                                />
+
+                                {/* Author Name */}
+                                <FormField
+                                    control={form.control}
+                                    name="authorName"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Author Name </FormLabel>
+                                            <FormControl>
+                                                <Input type="text" placeholder="e.g. John Doe" className="w-full" {...field} />
+                                            </FormControl>
                                             <FormMessage />
                                         </FormItem>
                                     )}
@@ -351,10 +402,18 @@ const UpdateBlogPage = () => {
                                                     {...field}
                                                 />
                                             </FormControl>
-                                            <p className="text-xs text-muted-foreground mt-1">
-                                                {field.value?.length ?? 0}/300
-                                            </p>
-                                            <FormMessage />
+                                            <div className="flex items-center justify-between mt-1">
+                                                <FormMessage />
+                                                <p className={`text-xs ml-auto ${
+                                                    (excerptValue?.length ?? 0) >= 300
+                                                        ? 'text-destructive'
+                                                        : (excerptValue?.length ?? 0) >= 270
+                                                        ? 'text-yellow-500'
+                                                        : 'text-muted-foreground'
+                                                }`}>
+                                                    {excerptValue?.length ?? 0}/300
+                                                </p>
+                                            </div>
                                         </FormItem>
                                     )}
                                 />
@@ -436,10 +495,18 @@ const UpdateBlogPage = () => {
                                                         {...field}
                                                     />
                                                 </FormControl>
-                                                <p className="text-xs text-muted-foreground">
-                                                    {field.value?.length ?? 0}/60
-                                                </p>
-                                                <FormMessage />
+                                                <div className="flex items-center justify-between mt-1">
+                                                    <FormMessage />
+                                                    <p className={`text-xs ml-auto ${
+                                                        (seoMetaTitleValue?.length ?? 0) >= 60
+                                                            ? 'text-destructive'
+                                                            : (seoMetaTitleValue?.length ?? 0) >= 50
+                                                            ? 'text-yellow-500'
+                                                            : 'text-muted-foreground'
+                                                    }`}>
+                                                        {seoMetaTitleValue?.length ?? 0}/60
+                                                    </p>
+                                                </div>
                                             </FormItem>
                                         )}
                                     />
@@ -459,10 +526,18 @@ const UpdateBlogPage = () => {
                                                         {...field}
                                                     />
                                                 </FormControl>
-                                                <p className="text-xs text-muted-foreground">
-                                                    {field.value?.length ?? 0}/160
-                                                </p>
-                                                <FormMessage />
+                                                <div className="flex items-center justify-between mt-1">
+                                                    <FormMessage />
+                                                    <p className={`text-xs ml-auto ${
+                                                        (seoMetaDescValue?.length ?? 0) >= 160
+                                                            ? 'text-destructive'
+                                                            : (seoMetaDescValue?.length ?? 0) >= 140
+                                                            ? 'text-yellow-500'
+                                                            : 'text-muted-foreground'
+                                                    }`}>
+                                                        {seoMetaDescValue?.length ?? 0}/160
+                                                    </p>
+                                                </div>
                                             </FormItem>
                                         )}
                                     />
@@ -580,6 +655,7 @@ const UpdateBlogPage = () => {
                                         )}
                                     />
                                 </div>
+
                             </div>
                         </CardContent>
 

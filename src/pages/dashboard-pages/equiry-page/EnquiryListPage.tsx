@@ -66,7 +66,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 interface ApiErrorResponse {
     message: string;
@@ -100,6 +100,33 @@ const formatDate = (dateStr?: string | null) => {
     } catch {
         return '—';
     }
+};
+
+/* ─── Helper: download an ExcelJS workbook in the browser ─────────────────── */
+const downloadWorkbook = async (wb: ExcelJS.Workbook, filename: string) => {
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+};
+
+/* ─── Helper: auto-fit column widths ──────────────────────────────────────── */
+const autoFitColumns = (ws: ExcelJS.Worksheet, rows: Record<string, string | number>[]) => {
+    if (!rows.length) return;
+    ws.columns = Object.keys(rows[0]).map((key) => ({
+        header: key,
+        key,
+        width: Math.max(
+            key.length,
+            ...rows.map((r) => String(r[key] ?? '').length),
+        ) + 2,
+    }));
 };
 
 /* ─── Drawer field row ─────────────────────────────────────────────────────── */
@@ -211,31 +238,49 @@ const RequestQuotesPage = () => {
     const isFilterApplied = Boolean(appliedStartDate || appliedEndDate);
 
     // ── Download individual quote ──────────────────────────────────────────
-    const handleDownloadQuote = (quote: RequestQuote) => {
+    const handleDownloadQuote = async (quote: RequestQuote) => {
         try {
-            const sheetData = [{
-                'Full Name': quote?.fullName ?? '', 'Company Name': quote?.companyName ?? '',
-                'Email': quote?.email ?? '', 'Phone': quote?.phone ?? '',
-                'Country': quote?.country ?? '', 'State/Province': quote?.stateProvince ?? '',
-                'City': quote?.city ?? '', 'Zip Code': quote?.zipCode ?? '',
-                'Book Title': quote?.bookTitle ?? '', 'Book Category': quote?.bookCategory ?? '',
-                'Trim Size': quote?.trimSize ?? '', 'Orientation': quote?.orientation ?? '',
-                'Proof Type': quote?.proofType ?? '', 'Binding Type': quote?.bindingType ?? '',
-                'Cover Stock': quote?.coverStock ?? '', 'Cover Ink': quote?.coverInk ?? '',
-                'Total Pages': quote?.totalPages ?? '', 'Text Paper Stock': quote?.textPaperStock ?? '',
-                'Text Ink': quote?.textInk ?? '', 'Quantities': quote?.quantities?.join(', ') ?? '',
-                'Packing Method': quote?.packingMethod ?? '', 'Shipping Method': quote?.shippingMethod ?? '',
-                'Delivery Address': quote?.deliveryAddress ?? '', 'Delivery City': quote?.deliveryCity ?? '',
-                'Delivery Country': quote?.deliveryCountry ?? '',
-                'Status': STATUS_CONFIG[quote?.status as QuoteStatus]?.label ?? quote?.status ?? '',
+            const row = {
+                'Full Name':           quote?.fullName ?? '',
+                'Company Name':        quote?.companyName ?? '',
+                'Email':               quote?.email ?? '',
+                'Phone':               quote?.phone ?? '',
+                'Country':             quote?.country ?? '',
+                'State/Province':      quote?.stateProvince ?? '',
+                'City':                quote?.city ?? '',
+                'Zip Code':            quote?.zipCode ?? '',
+                'Book Title':          quote?.bookTitle ?? '',
+                'Book Category':       quote?.bookCategory ?? '',
+                'Trim Size':           quote?.trimSize ?? '',
+                'Orientation':         quote?.orientation ?? '',
+                'Proof Type':          quote?.proofType ?? '',
+                'Binding Type':        quote?.bindingType ?? '',
+                'Cover Stock':         quote?.coverStock ?? '',
+                'Cover Ink':           quote?.coverInk ?? '',
+                'Total Pages':         quote?.totalPages ?? '',
+                'Text Paper Stock':    quote?.textPaperStock ?? '',
+                'Text Ink':            quote?.textInk ?? '',
+                'Quantities':          quote?.quantities?.join(', ') ?? '',
+                'Packing Method':      quote?.packingMethod ?? '',
+                'Shipping Method':     quote?.shippingMethod ?? '',
+                'Delivery Address':    quote?.deliveryAddress ?? '',
+                'Delivery City':       quote?.deliveryCity ?? '',
+                'Delivery Country':    quote?.deliveryCountry ?? '',
+                'Status':              STATUS_CONFIG[quote?.status as QuoteStatus]?.label ?? quote?.status ?? '',
                 'Special Instructions': quote?.specialInstructions ?? '',
-                'Received On': quote?.createdAt ? formatDate(quote.createdAt) : '',
-            }];
-            const ws = XLSX.utils.json_to_sheet(sheetData);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, 'Quote Request');
-            ws['!cols'] = Object.keys(sheetData[0]).map((k) => ({ wch: Math.max(k.length, ...sheetData.map((r) => String(r[k as keyof typeof r] ?? '').length)) + 2 }));
-            XLSX.writeFile(wb, `quote-${quote?.fullName?.replace(/\s+/g, '-')}-${quote?.bookTitle?.replace(/\s+/g, '-')}.xlsx`);
+                'Received On':         quote?.createdAt ? formatDate(quote.createdAt) : '',
+            };
+
+            const wb = new ExcelJS.Workbook();
+            const ws = wb.addWorksheet('Quote Request');
+            autoFitColumns(ws, [row]);
+            ws.addRow(Object.values(row));
+
+            // Bold header row
+            ws.getRow(1).font = { bold: true };
+
+            const filename = `quote-${quote?.fullName?.replace(/\s+/g, '-')}-${quote?.bookTitle?.replace(/\s+/g, '-')}.xlsx`;
+            await downloadWorkbook(wb, filename);
             toast.success('Downloaded successfully', { description: `Quote for ${quote?.fullName} downloaded.` });
         } catch {
             toast.error('Download failed', { description: 'Something went wrong. Please try again.' });
@@ -253,30 +298,51 @@ const RequestQuotesPage = () => {
             };
             const rows = await exportRequestQuotes(exportParams);
 
-            if (!rows?.length) { toast.warning('No data to export', { description: 'No quote requests found for the selected filters.' }); return; }
+            if (!rows?.length) {
+                toast.warning('No data to export', { description: 'No quote requests found for the selected filters.' });
+                return;
+            }
 
-            const sheetData = rows.map((q: RequestQuote) => ({
-                'Full Name': q?.fullName ?? '', 'Company Name': q?.companyName ?? '',
-                'Email': q?.email ?? '', 'Phone': q?.phone ?? '',
-                'Country': q?.country ?? '', 'State/Province': q?.stateProvince ?? '',
-                'City': q?.city ?? '', 'Zip Code': q?.zipCode ?? '',
-                'Book Title': q?.bookTitle ?? '', 'Book Category': q?.bookCategory ?? '',
-                'Trim Size': q?.trimSize ?? '', 'Orientation': q?.orientation ?? '',
-                'Proof Type': q?.proofType ?? '', 'Binding Type': q?.bindingType ?? '',
-                'Cover Stock': q?.coverStock ?? '', 'Cover Ink': q?.coverInk ?? '',
-                'Total Pages': q?.totalPages ?? '', 'Text Paper Stock': q?.textPaperStock ?? '',
-                'Text Ink': q?.textInk ?? '', 'Quantities': q?.quantities?.join(', ') ?? '',
-                'Packing Method': q?.packingMethod ?? '', 'Shipping Method': q?.shippingMethod ?? '',
-                'Delivery Address': q?.deliveryAddress ?? '', 'Delivery City': q?.deliveryCity ?? '',
+            const sheetRows = rows.map((q: RequestQuote) => ({
+                'Full Name':        q?.fullName ?? '',
+                'Company Name':     q?.companyName ?? '',
+                'Email':            q?.email ?? '',
+                'Phone':            q?.phone ?? '',
+                'Country':          q?.country ?? '',
+                'State/Province':   q?.stateProvince ?? '',
+                'City':             q?.city ?? '',
+                'Zip Code':         q?.zipCode ?? '',
+                'Book Title':       q?.bookTitle ?? '',
+                'Book Category':    q?.bookCategory ?? '',
+                'Trim Size':        q?.trimSize ?? '',
+                'Orientation':      q?.orientation ?? '',
+                'Proof Type':       q?.proofType ?? '',
+                'Binding Type':     q?.bindingType ?? '',
+                'Cover Stock':      q?.coverStock ?? '',
+                'Cover Ink':        q?.coverInk ?? '',
+                'Total Pages':      q?.totalPages ?? '',
+                'Text Paper Stock': q?.textPaperStock ?? '',
+                'Text Ink':         q?.textInk ?? '',
+                'Quantities':       q?.quantities?.join(', ') ?? '',
+                'Packing Method':   q?.packingMethod ?? '',
+                'Shipping Method':  q?.shippingMethod ?? '',
+                'Delivery Address': q?.deliveryAddress ?? '',
+                'Delivery City':    q?.deliveryCity ?? '',
                 'Delivery Country': q?.deliveryCountry ?? '',
-                'Status': STATUS_CONFIG[q?.status as QuoteStatus]?.label ?? q?.status ?? '',
-                'Received On': q?.createdAt ? formatDate(q.createdAt) : '',
+                'Status':           STATUS_CONFIG[q?.status as QuoteStatus]?.label ?? q?.status ?? '',
+                'Received On':      q?.createdAt ? formatDate(q.createdAt) : '',
             }));
-            const ws = XLSX.utils.json_to_sheet(sheetData);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, 'Quote Requests');
-            ws['!cols'] = Object.keys(sheetData[0]).map((k) => ({ wch: Math.max(k.length, ...sheetData.map((r) => String(r[k as keyof typeof r] ?? '').length)) + 2 }));
-            XLSX.writeFile(wb, `quote-requests-${appliedStartDate || 'all'}-to-${appliedEndDate || 'all'}.xlsx`);
+
+            const wb = new ExcelJS.Workbook();
+            const ws = wb.addWorksheet('Quote Requests');
+            autoFitColumns(ws, sheetRows);
+            sheetRows.forEach((r) => ws.addRow(Object.values(r)));
+
+            // Bold header row
+            ws.getRow(1).font = { bold: true };
+
+            const filename = `quote-requests-${appliedStartDate || 'all'}-to-${appliedEndDate || 'all'}.xlsx`;
+            await downloadWorkbook(wb, filename);
             toast.success('Export successful', { description: `${rows.length} quote request${rows.length !== 1 ? 's' : ''} exported.` });
         } catch {
             toast.error('Export failed', { description: 'Something went wrong while exporting.' });
@@ -363,7 +429,7 @@ const RequestQuotesPage = () => {
                                         <TableHead className="text-xs font-semibold text-slate-600">Name / Company</TableHead>
                                         <TableHead className="text-xs font-semibold text-slate-600">Email & Phone</TableHead>
                                         <TableHead className="text-xs font-semibold text-slate-600">Book</TableHead>
-                                        <TableHead className="text-xs font-semibold text-slate-600">Binding</TableHead>
+                                        <TableHead className="text-xs font-semibold text-slate-600">Binding / Pages</TableHead>
                                         <TableHead className="text-xs font-semibold text-slate-600">Qty / Shipping</TableHead>
                                         <TableHead className="text-xs font-semibold text-slate-600">Delivery</TableHead>
                                         <TableHead className="text-xs font-semibold text-slate-600">Status</TableHead>
@@ -373,7 +439,7 @@ const RequestQuotesPage = () => {
                                 </TableHeader>
                                 <TableBody>
                                     {quotes.map((quote: RequestQuote) => (
-                                    <TableRow
+                                        <TableRow
                                             key={quote?._id}
                                             onDoubleClick={() => handleViewClick(quote)}
                                             className="group hover:bg-slate-50 transition-colors border-b border-slate-100 cursor-pointer"
